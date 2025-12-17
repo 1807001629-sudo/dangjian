@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>党建信息管理系统</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="lib/xlsx.full.min.js"></script>
+    <script src="lib/echarts.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap">
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon">
+                <i class="fas fa-flag"></i>
+            </div>
+            <div class="logo-text">
+                <h1>党建信息管理系统</h1>
+                <p class="subtitle">Party Building Management System</p>
+            </div>
+        </div>
+        <div class="header-controls">
+            <div class="theme-toggle" id="theme-toggle">
+                <i class="fas fa-moon"></i>
+            </div>
+            <div class="user-info">
+                <div class="user-avatar">
+                    <i class="fas fa-user-circle"></i>
+                </div>
+                <div class="user-details">
+                    <span class="user-name">管理员</span>
+                    <span class="user-role">系统管理员</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h3><i class="fas fa-bars"></i> 导航菜单</h3>
+                <button class="sidebar-toggle" id="sidebar-toggle">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="#dashboard" class="nav-item active" data-tooltip="数据概览">
+                    <div class="nav-icon">
+                        <i class="fas fa-tachometer-alt"></i>
+                    </div>
+                    <span class="nav-text">数据概览</span>
+                    <div class="nav-indicator"></div>
+                </a>
+                
+                <a href="#members" class="nav-item" data-tooltip="党员信息">
+                    <div class="nav-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <span class="nav-text">党员信息</span>
+                    <div class="nav-indicator"></div>
+                </a>
+                
+                <a href="#process" class="nav-item" data-tooltip="发展流程">
+                    <div class="nav-icon">
+                        <i class="fas fa-project-diagram"></i>
+                    </div>
+                    <span class="nav-text">发展流程</span>
+                    <div class="nav-indicator"></div>
+                </a>
+                
+                <a href="#activities" class="nav-item" data-tooltip="活动管理">
+                    <div class="nav-icon">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <span class="nav-text">活动管理</span>
+                    <div class="nav-indicator"></div>
+                </a>
+                
+                <a href="#analysis" class="nav-item" data-tooltip="统计分析">
+                    <div class="nav-icon">
+                        <i class="fas fa-chart-bar"></i>
+                    </div>
+                    <span class="nav-text">统计分析</span>
+                    <div class="nav-indicator"></div>
+                </a>
+                
+                <a href="#data" class="nav-item" data-tooltip="数据管理">
+                    <div class="nav-icon">
+                        <i class="fas fa-database"></i>
+                    </div>
+                    <span class="nav-text">数据管理</span>
+                    <div class="nav-indicator"></div>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="data-info">
+                    <div class="info-item">
+                        <i class="fas fa-database"></i>
+                        <div class="info-content">
+                            <span class="info-label">数据状态</span>
+                            <span class="info-value status-empty" id="data-status">待上传</span>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-clock"></i>
+                        <div class="info-content">
+                            <span class="info-label">最后更新</span>
+                            <span class="info-value" id="update-time">--:--</span>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-hdd"></i>
+                        <div class="info-content">
+                            <span class="info-label">数据条数</span>
+                            <span class="info-value" id="data-count">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 欢迎引导界面 -->
+            <div class="welcome-guide" id="welcome-guide">
+                <div class="welcome-content">
+                    <div class="welcome-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <h2>欢迎使用党建信息管理系统</h2>
+                    <p class="welcome-subtitle">请上传Excel数据文件开始使用系统</p>
+                    
+                    <div class="upload-area" id="upload-area">
+                        <i class="fas fa-file-excel"></i>
+                        <h3>上传数据文件</h3>
+                        <p>拖放Excel文件到这里或点击选择文件</p>
+                        <p class="file-types">支持格式: .xlsx, .xls, .csv</p>
+                        <input type="file" id="welcome-file-input" accept=".xlsx,.xls,.csv">
+                        <button class="btn-primary" onclick="document.getElementById('welcome-file-input').click()">
+                            <i class="fas fa-file-upload"></i> 选择文件
+                        </button>
+                    </div>
+                    
+                    <div class="sample-section">
+                        <h4><i class="fas fa-download"></i> 下载示例文件</h4>
+                        <p>如果您没有数据文件，可以下载示例文件了解数据格式</p>
+                        <button class="btn-secondary" onclick="downloadSample()">
+                            <i class="fas fa-download"></i> 下载示例文件
+                        </button>
+                    </div>
+                    
+                    <div class="quick-tips">
+                        <h4><i class="fas fa-lightbulb"></i> 使用提示</h4>
+                        <ul>
+                            <li>系统需要Excel格式的数据文件</li>
+                            <li>数据应包含姓名、学号、班级、政治面貌等字段</li>
+                            <li>上传文件后系统将自动解析并显示数据</li>
+                            <li>您可以在数据管理模块中随时上传新文件</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据概览 -->
+            <section id="dashboard" class="content-section">
+                <div class="section-header">
+                    <div class="header-left">
+                        <h2><i class="fas fa-tachometer-alt"></i> 数据概览</h2>
+                        <p class="section-subtitle">党组织发展概况与关键指标</p>
+                    </div>
+                    <div class="header-controls">
+                        <div class="date-range">
+                            <i class="fas fa-calendar"></i>
+                            <span id="current-year">2025年数据</span>
+                        </div>
+                        <button id="refresh-btn" class="btn-refresh">
+                            <i class="fas fa-sync-alt"></i> 刷新
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 统计卡片 -->
+                <div class="stats-cards">
+                    <div class="stat-card card-primary">
+                        <div class="stat-card-header">
+                            <div class="stat-icon">
+                                <i class="fas fa-user-friends"></i>
+                            </div>
+                            <div class="stat-trend trend-up" style="visibility: hidden;">
+                                <i class="fas fa-arrow-up"></i> 0%
+                            </div>
+                        </div>
+                        <div class="stat-content">
+                            <h3>总人数</h3>
+                            <p id="total-count" class="stat-number">0</p>
+                            <p class="stat-desc">覆盖所有班级</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card card-success">
+                        <div class="stat-card-header">
+                            <div class="stat-icon">
+                                <i class="fas fa-star"></i>
+                            </div>
+                            <div class="stat-trend trend-up" style="visibility: hidden;">
+                                <i class="fas fa-arrow-up"></i> 0%
+                            </div>
+                        </div>
+                        <div class="stat-content">
+                            <h3>中共党员</h3>
+                            <p id="party-member-count" class="stat-number">0</p>
+                            <p class="stat-desc">含预备党员</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card card-warning">
+                        <div class="stat-card-header">
+                            <div class="stat-icon">
+                                <i class="fas fa-user-graduate"></i>
+                            </div>
+                            <div class="stat-trend trend-up" style="visibility: hidden;">
+                                <i class="fas fa-arrow-up"></i> 0%
+                            </div>
+                        </div>
+                        <div class="stat-content">
+                            <h3>积极分子</h3>
+                            <p id="activist-count" class="stat-number">0</p>
+                            <p class="stat-desc">正在培养中</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card card-info">
+                        <div class="stat-card-header">
+                            <div class="stat-icon">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <div class="stat-trend trend-up" style="visibility: hidden;">
+                                <i class="fas fa-arrow-up"></i> 0%
+                            </div>
+                        </div>
+                        <div class="stat-content">
+                            <h3>平均活动时数</h3>
+                            <p id="avg-hours" class="stat-number">0</p>
+                            <p class="stat-desc">小时/人</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 图表区域 -->
+                <div class="charts-container">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3><i class="fas fa-chart-pie"></i> 政治面貌分布</h3>
+                            <div class="chart-controls">
+                                <button class="chart-btn active" data-chart="pie">饼图</button>
+                                <button class="chart-btn" data-chart="bar">柱状图</button>
+                            </div>
+                        </div>
+                        <div id="political-chart" class="chart" style="height: 300px;">
+                            <div class="empty-chart">
+                                <i class="fas fa-chart-pie"></i>
+                                <p>暂无数据</p>
+                                <p class="empty-hint">请先上传数据文件</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3><i class="fas fa-chart-bar"></i> 入党流程阶段</h3>
+                            <div class="chart-controls">
+                                <button class="chart-btn active" data-chart="progress">进度图</button>
+                                <button class="chart-btn" data-chart="funnel">漏斗图</button>
+                            </div>
+                        </div>
+                        <div id="process-chart" class="chart" style="height: 300px;">
+                            <div class="empty-chart">
+                                <i class="fas fa-chart-bar"></i>
+                                <p>暂无数据</p>
+                                <p class="empty-hint">请先上传数据文件</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card full-width">
+                        <div class="chart-header">
+                            <h3><i class="fas fa-chart-line"></i> 各班级党员分布</h3>
+                            <div class="chart-controls">
+                                <select id="class-chart-type" class="chart-select">
+                                    <option value="bar">柱状图</option>
+                                    <option value="line">折线图</option>
+                                    <option value="stack">堆叠图</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="class-chart" class="chart" style="height: 350px;">
+                            <div class="empty-chart">
+                                <i class="fas fa-chart-line"></i>
+                                <p>暂无数据</p>
+                                <p class="empty-hint">请先上传数据文件</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 快速操作 -->
+                <div class="quick-actions">
+                    <h3><i class="fas fa-bolt"></i> 快速操作</h3>
+                    <div class="action-buttons">
+                        <button class="action-btn" onclick="system.exportData()">
+                            <i class="fas fa-file-export"></i>
+                            <span>导出报表</span>
+                        </button>
+                        <button class="action-btn" onclick="system.showSection('members')">
+                            <i class="fas fa-search"></i>
+                            <span>查找党员</span>
+                        </button>
+                        <button class="action-btn" onclick="system.showReminders()">
+                            <i class="fas fa-bell"></i>
+                            <span>查看提醒</span>
+                            <span class="badge">0</span>
+                        </button>
+                        <button class="action-btn" onclick="system.showSection('data')">
+                            <i class="fas fa-database"></i>
+                            <span>上传数据</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 党员信息 -->
+            <section id="members" class="content-section">
+                <div class="section-header">
+                    <div class="header-left">
+                        <h2><i class="fas fa-users"></i> 党员信息管理</h2>
+                        <p class="section-subtitle">党员信息查询与维护</p>
+                    </div>
+                    <div class="header-controls">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="search-input" placeholder="搜索姓名、学号或班级...">
+                            <button id="clear-search" class="btn-clear">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <button class="btn-add" onclick="system.addMember()">
+                            <i class="fas fa-plus"></i> 添加党员
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 高级筛选 -->
+                <div class="advanced-filters">
+                    <div class="filter-group">
+                        <label><i class="fas fa-filter"></i> 筛选条件</label>
+                        <div class="filter-controls">
+                            <select id="political-filter" class="filter-select">
+                                <option value="">政治面貌（全部）</option>
+                                <option value="中共党员">中共党员</option>
+                                <option value="中共预备党员">中共预备党员</option>
+                                <option value="共青团员">共青团员</option>
+                                <option value="群众">群众</option>
+                            </select>
+                            
+                            <select id="process-filter" class="filter-select">
+                                <option value="">入党流程（全部）</option>
+                                <option value="入党申请人">入党申请人</option>
+                                <option value="入党积极分子">入党积极分子</option>
+                                <option value="积极分子培训结业">积极分子培训结业</option>
+                                <option value="通过600题">通过600题</option>
+                            </select>
+                            
+                            <select id="class-filter" class="filter-select">
+                                <option value="">班级（全部）</option>
+                            </select>
+                            
+                            <select id="sort-by" class="filter-select">
+                                <option value="name">按姓名排序</option>
+                                <option value="id">按学号排序</option>
+                                <option value="hours">按活动时数排序</option>
+                                <option value="date">按申请时间排序</option>
+                            </select>
+                            
+                            <button id="reset-filters" class="btn-secondary">
+                                <i class="fas fa-redo"></i> 重置
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 数据表格 -->
+                <div class="table-wrapper">
+                    <div class="table-header">
+                        <div class="table-info">
+                            <span id="table-count">0</span> 条记录
+                        </div>
+                        <div class="table-actions">
+                            <button class="btn-icon" onclick="system.exportTable()" title="导出表格">
+                                <i class="fas fa-download"></i>
+                            </button>
+                            <button class="btn-icon" onclick="system.printTable()" title="打印">
+                                <i class="fas fa-print"></i>
+                            </button>
+                            <button class="btn-icon" onclick="system.toggleColumnVisibility()" title="列设置">
+                                <i class="fas fa-columns"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table id="member-table">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <div class="table-cell">
+                                            <span>姓名</span>
+                                            <i class="fas fa-sort"></i>
+                                        </div>
+                                    </th>
+                                    <th>
+                                        <div class="table-cell">
+                                            <span>学号</span>
+                                            <i class="fas fa-sort"></i>
+                                        </div>
+                                    </th>
+                                    <th>
+                                        <div class="table-cell">
+                                            <span>班级</span>
+                                            <i class="fas fa-sort"></i>
+                                        </div>
+                                    </th>
+                                    <th>政治面貌</th>
+                                    <th>入党流程阶段</th>
+                                    <th>活动时数</th>
+                                    <th>申请入党时间</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="member-table-body">
+                                <!-- 数据通过JS动态填充 -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- 空状态 -->
+                    <div id="empty-state" class="empty-state">
+                        <div class="empty-icon">
+                            <i class="fas fa-user-slash"></i>
+                        </div>
+                        <h3>暂无数据</h3>
+                        <p>请先上传数据文件或添加党员信息</p>
+                        <button class="btn-primary" onclick="system.showSection('data')">
+                            <i class="fas fa-upload"></i> 上传数据
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 分页 -->
+                <div class="pagination">
+                    <div class="pagination-info">
+                        显示 <span id="page-start">0</span> - <span id="page-end">0</span> 条，共 <span id="total-records">0</span> 条
+                    </div>
+                    <div class="pagination-controls">
+                        <button id="first-page" class="page-btn" disabled>
+                            <i class="fas fa-angle-double-left"></i>
+                        </button>
+                        <button id="prev-page" class="page-btn" disabled>
+                            <i class="fas fa-angle-left"></i>
+                        </button>
+                        <div class="page-numbers">
+                            <span id="current-page">0</span> / <span id="total-pages">0</span>
+                        </div>
+                        <button id="next-page" class="page-btn" disabled>
+                            <i class="fas fa-angle-right"></i>
+                        </button>
+                        <button id="last-page" class="page-btn" disabled>
+                            <i class="fas fa-angle-double-right"></i>
+                        </button>
+                    </div>
+                    <div class="page-size">
+                        <select id="page-size-select">
+                            <option value="10">10 条/页</option>
+                            <option value="20" selected>20 条/页</option>
+                            <option value="50">50 条/页</option>
+                            <option value="100">100 条/页</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 发展流程 -->
+            <section id="process" class="content-section">
+                <div class="section-header">
+                    <div class="header-left">
+                        <h2><i class="fas fa-project-diagram"></i> 党员发展流程追踪</h2>
+                        <p class="section-subtitle">入党全过程可视化追踪</p>
+                    </div>
+                    <div class="header-controls">
+                        <button class="btn-primary" onclick="system.showProcessGuide()">
+                            <i class="fas fa-question-circle"></i> 流程说明
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="process-container">
+                    <!-- 流程概览 -->
+                    <div class="process-overview">
+                        <div class="process-card">
+                            <h3><i class="fas fa-chart-network"></i> 发展流程概览</h3>
+                            <div class="process-stats">
+                                <div class="process-stat">
+                                    <span class="stat-label">入党申请人</span>
+                                    <span class="stat-value" id="process-applicants">0</span>
+                                </div>
+                                <div class="process-stat">
+                                    <span class="stat-label">积极分子</span>
+                                    <span class="stat-value" id="process-activists">0</span>
+                                </div>
+                                <div class="process-stat">
+                                    <span class="stat-label">发展对象</span>
+                                    <span class="stat-value" id="process-candidates">0</span>
+                                </div>
+                                <div class="process-stat">
+                                    <span class="stat-label">预备党员</span>
+                                    <span class="stat-value" id="process-probationary">0</span>
+                                </div>
+                                <div class="process-stat">
+                                    <span class="stat-label">正式党员</span>
+                                    <span class="stat-value" id="process-formal">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="process-card">
+                            <h3><i class="fas fa-tachometer-alt"></i> 发展效率指标</h3>
+                            <div class="efficiency-metrics">
+                                <div class="metric">
+                                    <div class="metric-label">
+                                        <i class="fas fa-user-clock"></i>
+                                        <span>平均培养时间</span>
+                                    </div>
+                                    <div class="metric-value">0 月</div>
+                                </div>
+                                <div class="metric">
+                                    <div class="metric-label">
+                                        <i class="fas fa-percentage"></i>
+                                        <span>转正成功率</span>
+                                    </div>
+                                    <div class="metric-value">0%</div>
+                                </div>
+                                <div class="metric">
+                                    <div class="metric-label">
+                                        <i class="fas fa-calendar-check"></i>
+                                        <span>年度发展计划</span>
+                                    </div>
+                                    <div class="metric-value">0 人</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 流程可视化 -->
+                    <div class="process-visualization">
+                        <div class="visualization-header">
+                            <h3><i class="fas fa-sitemap"></i> 发展流程可视化</h3>
+                            <div class="viz-controls">
+                                <button class="viz-btn active" data-viz="flow">流程图</button>
+                                <button class="viz-btn" data-viz="timeline">时间线</button>
+                                <button class="viz-btn" data-viz="network">关系图</button>
+                            </div>
+                        </div>
+                        <div id="process-flow" class="chart" style="height: 500px;">
+                            <div class="empty-chart">
+                                <i class="fas fa-sitemap"></i>
+                                <p>暂无数据</p>
+                                <p class="empty-hint">请先上传数据文件</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 阶段详情 -->
+                    <div class="stage-details">
+                        <h3><i class="fas fa-info-circle"></i> 各阶段详情</h3>
+                        <div class="stage-cards">
+                            <div class="stage-card stage-1">
+                                <div class="stage-header">
+                                    <div class="stage-icon">
+                                        <i class="fas fa-file-signature"></i>
+                                    </div>
+                                    <div class="stage-info">
+                                        <h4>入党申请人</h4>
+                                        <span class="stage-count" id="stage-1-count">0</span>
+                                    </div>
+                                </div>
+                                <p class="stage-desc">提交入党申请书，党组织派人谈话</p>
+                                <div class="stage-progress">
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0%"></div>
+                                    </div>
+                                    <span>0%</span>
+                                </div>
+                            </div>
+                            
+                            <div class="stage-card stage-2">
+                                <div class="stage-header">
+                                    <div class="stage-icon">
+                                        <i class="fas fa-user-graduate"></i>
+                                    </div>
+                                    <div class="stage-info">
+                                        <h4>入党积极分子</h4>
+                                        <span class="stage-count" id="stage-2-count">0</span>
+                                    </div>
+                                </div>
+                                <p class="stage-desc">确定培养联系人，参加党课学习</p>
+                                <div class="stage-progress">
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0%"></div>
+                                    </div>
+                                    <span>0%</span>
+                                </div>
+                            </div>
+                            
+                            <div class="stage-card stage-3">
+                                <div class="stage-header">
+                                    <div class="stage-icon">
+                                        <i class="fas fa-medal"></i>
+                                    </div>
+                                    <div class="stage-info">
+                                        <h4>发展对象</h4>
+                                        <span class="stage-count" id="stage-3-count">0</span>
+                                    </div>
+                                </div>
+                                <p class="stage-desc">政治审查，短期集中培训</p>
+                                <div class="stage-progress">
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0%"></div>
+                                    </div>
+                                    <span>0%</span>
+                                </div>
+                            </div>
+                            
+                            <div class="stage-card stage-4">
+                                <div class="stage-header">
+                                    <div class="stage-icon">
+                                        <i class="fas fa-star-half-alt"></i>
+                                    </div>
+                                    <div class="stage-info">
+                                        <h4>预备党员</h4>
+                                        <span class="stage-count" id="stage-4-count">0</span>
+                                    </div>
+                                </div>
+                                <p class="stage-desc">入党宣誓，一年预备期考察</p>
+                                <div class="stage-progress">
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0%"></div>
+                                    </div>
+                                    <span>0%</span>
+                                </div>
+                            </div>
+                            
+                            <div class="stage-card stage-5">
+                                <div class="stage-header">
+                                    <div class="stage-icon">
+                                        <i class="fas fa-star"></i>
+                                    </div>
+                                    <div class="stage-info">
+                                        <h4>正式党员</h4>
+                                        <span class="stage-count" id="stage-5-count">0</span>
+                                    </div>
+                                </div>
+                                <p class="stage-desc">按期转正，履行党员义务</p>
+                                <div class="stage-progress">
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0%"></div>
+                                    </div>
+                                    <span>0%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 活动管理 -->
+            <section id="activities" class="content-section">
+                <div class="section-header">
+                    <div class="header-left">
+                        <h2><i class="fas fa-calendar-alt"></i> 活动时数管理</h2>
+                        <p class="section-subtitle">党组织活动参与情况统计</p>
+                    </div>
+                    <div class="header-controls">
+                        <div class="time-filter">
+                            <i class="fas fa-calendar-week"></i>
+                            <select id="activity-period">
+                                <option value="all">全部时间</option>
+                                <option value="year">本年</option>
+                                <option value="quarter">本季度</option>
+                                <option value="month">本月</option>
+                            </select>
+                        </div>
+                        <button class="btn-primary" onclick="system.addActivity()">
+                            <i class="fas fa-plus"></i> 添加活动
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 活动统计 -->
+                <div class="activity-stats">
+                    <div class="activity-stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>总活动时数</h3>
+                            <p class="stat-number" id="total-activity-hours">0</p>
+                            <p class="stat-change trend-up" style="visibility: hidden;">
+                                <i class="fas fa-arrow-up"></i> 0%
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="activity-stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>平均参与率</h3>
+                            <p class="stat-number" id="avg-participation-rate">0%</p>
+                            <p class="stat-change trend-up" style="visibility: hidden;">
+                                <i class="fas fa-arrow-up"></i> 0%
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="activity-stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>活动场次</h3>
+                            <p class="stat-number" id="activity-count">0</p>
+                            <p class="stat-change trend-up" style="visibility: hidden;">
+                                <i class="fas fa-arrow-up"></i> 0%
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="activity-stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-trophy"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>积极分子之星</h3>
+                            <p class="stat-number" id="top-activist">--</p>
+                            <p class="stat-change">
+                                <i class="fas fa-crown"></i> 最高时数
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 活动图表 -->
+                <div class="activity-charts">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3><i class="fas fa-chart-bar"></i> 活动时数分布</h3>
+                            <div class="chart-controls">
+                                <button class="chart-btn active" data-chart="distribution">分布图</button>
+                                <button class="chart-btn" data-chart="ranking">排名图</button>
+                            </div>
+                        </div>
+                        <div id="activity-distribution-chart" class="chart" style="height: 300px;">
+                            <div class="empty-chart">
+                                <i class="fas fa-chart-bar"></i>
+                                <p>暂无数据</p>
+                                <p class="empty-hint">请先上传数据文件</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3><i class="fas fa-chart-line"></i> 活动趋势分析</h3>
+                            <div class="chart-controls">
+                                <button class="chart-btn active" data-chart="trend">趋势图</button>
+                                <button class="chart-btn" data-chart="comparison">对比图</button>
+                            </div>
+                        </div>
+                        <div id="activity-trend-chart" class="chart" style="height: 300px;">
+                            <div class="empty-chart">
+                                <i class="fas fa-chart-line"></i>
+                                <p>暂无数据</p>
+                                <p class="empty-hint">请先上传数据文件</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card full-width">
+                        <div class="chart-header">
+                            <h3><i class="fas fa-chart-pie"></i> 班级活动参与情况</h3>
+                            <div class="chart-controls">
+                                <select id="class-activity-type" class="chart-select">
+                                    <option value="pie">饼图</option>
+                                    <option value="radar">雷达图</option>
+                                    <option value="heatmap">热力图</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="class-activity-chart" class="chart" style="height: 350px;">
+                            <div class="empty-chart">
+                                <i class="fas fa-chart-pie"></i>
+                                <p>暂无数据</p>
+                                <p class="empty-hint">请先上传数据文件</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 活动列表 -->
+                <div class="activity-list">
+                    <h3><i class="fas fa-list"></i> 近期活动记录</h3>
+                    <div class="activity-table-wrapper">
+                        <table class="activity-table">
+                            <thead>
+                                <tr>
+                                    <th>活动名称</th>
+                                    <th>日期</th>
+                                    <th>组织者</th>
+                                    <th>参与人数</th>
+                                    <th>平均时数</th>
+                                    <th>活动类型</th>
+                                    <th>状态</th>
+                                </tr>
+                            </thead>
+                            <tbody id="activity-table-body">
+                                <tr>
+                                    <td colspan="7" class="text-center">暂无活动数据，请先上传数据文件</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- 活动提醒 -->
+                <div class="activity-reminders">
+                    <h3><i class="fas fa-bell"></i> 活动提醒</h3>
+                    <div class="reminder-list">
+                        <div class="reminder-item reminder-info">
+                            <div class="reminder-icon">
+                                <i class="fas fa-info-circle"></i>
+                            </div>
+                            <div class="reminder-content">
+                                <h4>欢迎使用活动管理</h4>
+                                <p>请先上传数据文件开始使用活动管理功能</p>
+                            </div>
+                            <button class="btn-sm" onclick="system.showSection('data')">上传数据</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 统计分析 -->
+            <section id="analysis" class="content-section">
+                <div class="section-header">
+                    <div class="header-left">
+                        <h2><i class="fas fa-chart-bar"></i> 统计分析</h2>
+                        <p class="section-subtitle">多维度数据分析与洞察</p>
+                    </div>
+                    <div class="header-controls">
+                        <div class="analysis-type">
+                            <i class="fas fa-chart-pie"></i>
+                            <select id="analysis-type">
+                                <option value="comprehensive">综合分析</option>
+                                <option value="academic">学业成绩分析</option>
+                                <option value="activity">活动表现分析</option>
+                                <option value="development">发展进程分析</option>
+                            </select>
+                        </div>
+                        <button class="btn-primary" onclick="system.generateAnalysisReport()">
+                            <i class="fas fa-file-download"></i> 生成报告
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 分析概览 -->
+                <div class="analysis-overview">
+                    <div class="analysis-card">
+                        <h3><i class="fas fa-brain"></i> 关键洞察</h3>
+                        <ul class="insights-list">
+                            <li class="insight-item">
+                                <i class="fas fa-lightbulb"></i>
+                                <span>请先上传数据文件以获取分析结果</span>
+                            </li>
+                            <li class="insight-item">
+                                <i class="fas fa-lightbulb"></i>
+                                <span>系统将自动分析党员发展情况</span>
+                            </li>
+                            <li class="insight-item">
+                                <i class="fas fa-lightbulb"></i>
+                                <span>提供多维度数据洞察</span>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="analysis-card">
+                        <h3><i class="fas fa-chart-network"></i> 关联分析</h3>
+                        <div id="correlation-chart" class="chart" style="height: 200px;">
+                            <div class="empty-chart">
+                                <i class="fas fa-chart-network"></i>
+                                <p>暂无数据</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 分析图表 -->
+                <div class="analysis-charts">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3><i class="fas fa-chart-bar"></i> 600题考试成绩分布</h3>
+                            <div class="chart-controls">
+                                <button class="chart-btn active" data-chart="score-dist">分布图</button>
+                                <button class="chart-btn" data-chart="score-trend">趋势图</button>
+                            </div>
+                        </div>
+                        <div id="score-analysis-chart" class="chart" style="height: 300px;">
+                            <div class="empty-chart">
+                                <i class="fas fa-chart-bar"></i>
+                                <p>暂无数据</p>
+                                <p class="empty-hint">请先上传数据文件</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3><i class="fas fa-chart-line"></i> 活动时数与成绩关联</h3>
+                            <div class="chart-controls">
+                                <button class="chart-btn active" data-chart="correlation">关联图</button>
+                                <button class="chart-btn" data-chart="scatter">散点图</button>
+                            </div>
+                        </div>
+                        <div id="correlation-analysis-chart" class="chart" style="height: 300px;">
+                            <div class="empty-chart">
+                                <i class="fas fa-chart-line"></i>
+                                <p>暂无数据</p>
+                                <p class="empty-hint">请先上传数据文件</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3><i class="fas fa-chart-area"></i> 年级发展对比</h3>
+                            <div class="chart-controls">
+                                <button class="chart-btn active" data-chart="grade-comparison">对比图</button>
+                                <button class="chart-btn" data-chart="grade-trend">趋势图</button>
+                            </div>
+                        </div>
+                        <div id="grade-analysis-chart" class="chart" style="height: 300px;">
+                            <div class="empty-chart">
+                                <i class="fas fa-chart-area"></i>
+                                <p>暂无数据</p>
+                                <p class="empty-hint">请先上传数据文件</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3><i class="fas fa-chart-pie"></i> 政治面貌时间演变</h3>
+                            <div class="chart-controls">
+                                <button class="chart-btn active" data-chart="evolution">演变图</button>
+                                <button class="chart-btn" data-chart="stack">堆叠图</button>
+                            </div>
+                        </div>
+                        <div id="evolution-analysis-chart" class="chart" style="height: 300px;">
+                            <div class="empty-chart">
+                                <i class="fas fa-chart-pie"></i>
+                                <p>暂无数据</p>
+                                <p class="empty-hint">请先上传数据文件</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 数据表格 -->
+                <div class="analysis-table">
+                    <h3><i class="fas fa-table"></i> 详细数据表</h3>
+                    <div class="table-container">
+                        <table class="analysis-data-table">
+                            <thead>
+                                <tr>
+                                    <th>班级</th>
+                                    <th>总人数</th>
+                                    <th>党员数</th>
+                                    <th>党员比例</th>
+                                    <th>平均活动时数</th>
+                                    <th>平均成绩</th>
+                                    <th>发展效率</th>
+                                </tr>
+                            </thead>
+                            <tbody id="analysis-table-body">
+                                <tr>
+                                    <td colspan="7" class="text-center">暂无数据，请先上传数据文件</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- 分析结论 -->
+                <div class="analysis-conclusion">
+                    <h3><i class="fas fa-clipboard-check"></i> 分析结论</h3>
+                    <div class="conclusion-content">
+                        <div class="conclusion-item suggestion">
+                            <div class="conclusion-header">
+                                <i class="fas fa-lightbulb"></i>
+                                <h4>系统准备就绪</h4>
+                            </div>
+                            <ul>
+                                <li>请先上传Excel数据文件开始使用系统</li>
+                                <li>系统支持.xlsx、.xls和.csv格式</li>
+                                <li>上传后系统将自动解析并生成分析报告</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 数据管理 -->
+            <section id="data" class="content-section">
+                <div class="section-header">
+                    <div class="header-left">
+                        <h2><i class="fas fa-database"></i> 数据管理</h2>
+                        <p class="section-subtitle">数据导入、导出与维护</p>
+                    </div>
+                    <div class="header-controls">
+                        <button class="btn-primary" onclick="system.backupData()">
+                            <i class="fas fa-save"></i> 备份数据
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 数据概览 -->
+                <div class="data-overview">
+                    <div class="data-overview-card">
+                        <div class="data-icon">
+                            <i class="fas fa-database"></i>
+                        </div>
+                        <div class="data-content">
+                            <h3>数据总量</h3>
+                            <p class="data-number" id="data-total">0</p>
+                            <p class="data-desc">条记录</p>
+                        </div>
+                    </div>
+                    
+                    <div class="data-overview-card">
+                        <div class="data-icon">
+                            <i class="fas fa-columns"></i>
+                        </div>
+                        <div class="data-content">
+                            <h3>数据字段</h3>
+                            <p class="data-number" id="data-columns">0</p>
+                            <p class="data-desc">个字段</p>
+                        </div>
+                    </div>
+                    
+                    <div class="data-overview-card">
+                        <div class="data-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="data-content">
+                            <h3>数据完整率</h3>
+                            <p class="data-number" id="data-completeness">0%</p>
+                            <p class="data-desc">信息完整</p>
+                        </div>
+                    </div>
+                    
+                    <div class="data-overview-card">
+                        <div class="data-icon">
+                            <i class="fas fa-history"></i>
+                        </div>
+                        <div class="data-content">
+                            <h3>最后更新</h3>
+                            <p class="data-number" id="last-update-time">--:--</p>
+                            <p class="data-desc">从未更新</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 数据操作 -->
+                <div class="data-operations">
+                    <div class="operation-card">
+                        <div class="operation-header">
+                            <i class="fas fa-file-import"></i>
+                            <h3>数据导入</h3>
+                        </div>
+                        <p>上传Excel数据文件开始使用系统</p>
+                        <div class="file-upload-area" id="file-upload-area">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>拖放文件到这里或点击选择</p>
+                            <input type="file" id="file-input" accept=".xlsx,.xls,.csv">
+                            <button class="btn-secondary" onclick="document.getElementById('file-input').click()">
+                                选择文件
+                            </button>
+                        </div>
+                        <div class="file-info" id="file-info">
+                            <p>支持格式: .xlsx, .xls, .csv</p>
+                            <p>最大文件大小: 10MB</p>
+                        </div>
+                    </div>
+                    
+                    <div class="operation-card">
+                        <div class="operation-header">
+                            <i class="fas fa-file-export"></i>
+                            <h3>数据导出</h3>
+                        </div>
+                        <p>将当前数据导出为多种格式</p>
+                        <div class="operation-buttons">
+                            <button class="btn-operation" onclick="system.exportExcel()">
+                                <i class="fas fa-file-excel"></i> Excel
+                            </button>
+                            <button class="btn-operation" onclick="system.exportCSV()">
+                                <i class="fas fa-file-csv"></i> CSV
+                            </button>
+                            <button class="btn-operation" onclick="system.exportPDF()">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="operation-card">
+                        <div class="operation-header">
+                            <i class="fas fa-tools"></i>
+                            <h3>数据维护</h3>
+                        </div>
+                        <p>数据清理与维护工具</p>
+                        <div class="maintenance-tools">
+                            <button class="btn-tool" onclick="system.cleanData()">
+                                <i class="fas fa-broom"></i> 数据清理
+                            </button>
+                            <button class="btn-tool" onclick="system.validateData()">
+                                <i class="fas fa-check-double"></i> 数据验证
+                            </button>
+                            <button class="btn-tool" onclick="system.mergeData()">
+                                <i class="fas fa-object-group"></i> 数据合并
+                            </button>
+                            <button class="btn-tool" onclick="system.checkDuplicates()">
+                                <i class="fas fa-copy"></i> 查重检测
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 数据质量报告 -->
+                <div class="data-quality">
+                    <h3><i class="fas fa-chart-line"></i> 数据质量报告</h3>
+                    <div class="quality-metrics">
+                        <div class="quality-metric">
+                            <div class="metric-header">
+                                <span class="metric-label">完整性</span>
+                                <span class="metric-value">0%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="quality-metric">
+                            <div class="metric-header">
+                                <span class="metric-label">准确性</span>
+                                <span class="metric-value">0%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="quality-metric">
+                            <div class="metric-header">
+                                <span class="metric-label">一致性</span>
+                                <span class="metric-value">0%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="quality-metric">
+                            <div class="metric-header">
+                                <span class="metric-label">时效性</span>
+                                <span class="metric-value">0%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 数据日志 -->
+                <div class="data-log">
+                    <h3><i class="fas fa-history"></i> 操作日志</h3>
+                    <div class="log-container">
+                        <div class="log-list" id="log-list">
+                            <div class="log-item">
+                                <div class="log-icon">
+                                    <i class="fas fa-info-circle"></i>
+                                </div>
+                                <div class="log-content">
+                                    <h4>系统启动</h4>
+                                    <p>党建信息管理系统已启动</p>
+                                </div>
+                                <div class="log-time">刚刚</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 模态框容器 -->
+    <div id="modal-container"></div>
+
+    <!-- 底部栏 -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-left">
+                <p>© 2025 党建信息管理系统 v2.1</p>
+                <p>技术支持：党委组织部信息中心</p>
+            </div>
+            <div class="footer-right">
+                <p>数据安全等级：<span class="security-level">内部使用</span></p>
+                <p>系统状态：<span class="system-status online">就绪</span></p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 通知容器 -->
+    <div id="notification-container"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
