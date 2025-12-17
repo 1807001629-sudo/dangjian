@@ -1,5 +1,5 @@
-// 党建管理系统 - 主逻辑文件
-// 修改为无初始数据加载，支持用户上传
+// 党建管理系统 - 优化后的主逻辑文件
+// 用户上传Excel文件后自动生成图表
 
 class PartyBuildingSystem {
     constructor() {
@@ -10,7 +10,6 @@ class PartyBuildingSystem {
         this.pageSize = 20;
         this.currentSection = 'dashboard';
         this.charts = {};
-        this.filters = {};
         this.hasData = false;
         
         // 初始化
@@ -98,22 +97,25 @@ class PartyBuildingSystem {
             
             reader.onload = async (e) => {
                 try {
+                    let data = [];
+                    
                     if (fileExtension === '.csv') {
                         // 处理CSV文件
                         const text = e.target.result;
                         const workbook = XLSX.read(text, { type: 'string' });
                         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                        this.allData = XLSX.utils.sheet_to_json(worksheet);
+                        data = XLSX.utils.sheet_to_json(worksheet);
                     } else {
                         // 处理Excel文件
-                        const data = new Uint8Array(e.target.result);
-                        const workbook = XLSX.read(data, { type: 'array' });
+                        const dataArray = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(dataArray, { type: 'array' });
                         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                        this.allData = XLSX.utils.sheet_to_json(worksheet);
+                        data = XLSX.utils.sheet_to_json(worksheet);
                     }
                     
                     // 数据处理
-                    this.processData();
+                    this.allData = this.processData(data);
+                    this.filteredData = [...this.allData];
                     
                     // 隐藏引导界面，显示主界面
                     this.hideWelcomeGuide();
@@ -122,6 +124,7 @@ class PartyBuildingSystem {
                     this.updateDashboard();
                     this.updateMemberTable();
                     this.updateDataStats();
+                    this.updateClassFilterOptions();
                     
                     this.hideLoading();
                     
@@ -134,11 +137,13 @@ class PartyBuildingSystem {
                 } catch (error) {
                     console.error('解析数据失败:', error);
                     this.showError('解析数据文件失败，请检查文件格式是否正确');
+                    this.hideLoading();
                 }
             };
             
             reader.onerror = () => {
                 this.showError('读取文件失败');
+                this.hideLoading();
             };
             
             if (fileExtension === '.csv') {
@@ -150,68 +155,116 @@ class PartyBuildingSystem {
         } catch (error) {
             console.error('加载数据失败:', error);
             this.showError('无法加载数据文件，请检查文件格式');
+            this.hideLoading();
         }
     }
     
-    processData() {
-        // 数据清洗和转换
-        this.allData.forEach(item => {
-            // 确保数值字段
-            item['活动时数'] = this.parseNumber(item['活动时数']);
-            item['修正党时'] = this.parseNumber(item['修正党时']);
-            item['600题考试成绩'] = this.parseNumber(item['600题考试成绩']);
-            item['积极分子结业成绩'] = this.parseNumber(item['积极分子结业成绩']);
+    // 数据清洗和转换
+    processData(data) {
+        if (!Array.isArray(data) || data.length === 0) return [];
+        
+        return data.map(item => {
+            // 创建处理后的数据对象
+            const processedItem = { ...item };
+            
+            // 处理数值字段
+            processedItem['活动时数'] = this.parseNumber(item['活动时数']);
+            processedItem['修正党时'] = this.parseNumber(item['修正党时']);
+            processedItem['600题考试成绩'] = this.parseNumber(item['600题考试成绩']);
+            processedItem['积极分子结业成绩'] = this.parseNumber(item['积极分子结业成绩']);
+            processedItem['递交入党申请书年龄（岁）'] = this.parseNumber(item['递交入党申请书年龄（岁）']);
             
             // 处理日期字段
-            item['出生年月日'] = this.formatDate(item['出生年月日']);
-            item['入校时间'] = this.formatDate(item['入校时间']);
-            item['申请入党时间'] = this.formatDate(item['申请入党时间']);
-            item['600题考试时间'] = this.formatDate(item['600题考试时间']);
-            item['党支部接收入党积极分子时间'] = this.formatDate(item['党支部接收入党积极分子时间']);
-            
-            // 计算年龄
-            if (item['出生年月日'] && item['申请入党时间']) {
-                const birthDate = new Date(item['出生年月日']);
-                const applyDate = new Date(item['申请入党时间']);
-                const age = applyDate.getFullYear() - birthDate.getFullYear();
-                item['申请时年龄'] = age;
-            }
-            
-            // 设置默认值
-            if (!item['入党流程阶段'] || item['入党流程阶段'].trim() === '') {
-                item['入党流程阶段'] = '未开始';
-            }
+            processedItem['出生年月日'] = this.formatDate(item['出生年月日']);
+            processedItem['入校时间'] = this.formatDate(item['入校时间']);
+            processedItem['申请入党时间'] = this.formatDate(item['申请入党时间']);
+            processedItem['600题考试时间'] = this.formatDate(item['600题考试时间']);
+            processedItem['党支部接收入党积极分子时间'] = this.formatDate(item['党支部接收入党积极分子时间']);
+            processedItem['入团时间'] = this.formatDate(item['入团时间']);
             
             // 计算状态
-            item['状态'] = this.calculateStatus(item);
+            processedItem['状态'] = this.calculateStatus(item);
+            
+            // 确保重要字段有默认值
+            if (!processedItem['政治面貌'] || processedItem['政治面貌'].trim() === '') {
+                processedItem['政治面貌'] = '群众';
+            }
+            
+            if (!processedItem['入党流程阶段'] || processedItem['入党流程阶段'].trim() === '') {
+                processedItem['入党流程阶段'] = '未开始';
+            }
+            
+            // 处理班级信息
+            if (!processedItem['班级'] || processedItem['班级'].trim() === '') {
+                processedItem['班级'] = '未分配';
+            }
+            
+            // 处理学号
+            if (!processedItem['学号'] || processedItem['学号'].trim() === '') {
+                processedItem['学号'] = '未知学号';
+            }
+            
+            // 处理姓名
+            if (!processedItem['姓名'] || processedItem['姓名'].trim() === '') {
+                processedItem['姓名'] = '未知姓名';
+            }
+            
+            return processedItem;
         });
-        
-        this.filteredData = [...this.allData];
-        
-        // 更新数据状态
-        this.updateDataStatus();
     }
     
+    // 计算状态
     calculateStatus(item) {
-        if (item['政治面貌'] === '中共党员') return '正式党员';
-        if (item['政治面貌'] === '中共预备党员') return '预备党员';
-        if (item['入党流程阶段'] && item['入党流程阶段'].includes('积极分子')) return '积极分子';
-        if (item['入党流程阶段'] && item['入党流程阶段'].includes('申请人')) return '入党申请人';
+        const politicalStatus = item['政治面貌'] || '';
+        const processStage = item['入党流程阶段'] || '';
+        
+        if (politicalStatus === '中共党员') return '正式党员';
+        if (politicalStatus === '中共预备党员') return '预备党员';
+        
+        if (processStage.includes('积极分子')) return '积极分子';
+        if (processStage.includes('申请人')) return '入党申请人';
+        if (processStage.includes('通过600题')) return '600题通过';
+        
         return '群众';
     }
     
     parseNumber(value) {
-        if (!value) return 0;
-        const num = parseFloat(value);
-        return isNaN(num) ? 0 : num;
+        if (value === null || value === undefined || value === '') return 0;
+        
+        // 如果是字符串，尝试解析
+        if (typeof value === 'string') {
+            // 移除可能的非数字字符
+            const cleaned = value.replace(/[^\d.-]/g, '');
+            const num = parseFloat(cleaned);
+            return isNaN(num) ? 0 : num;
+        }
+        
+        // 如果已经是数字，直接返回
+        if (typeof value === 'number') return value;
+        
+        return 0;
     }
     
     formatDate(dateStr) {
         if (!dateStr) return '';
-        const str = dateStr.toString();
-        if (str.length === 8 && !isNaN(str)) {
+        
+        const str = dateStr.toString().trim();
+        
+        // 如果是8位数字格式（如20021204）
+        if (str.length === 8 && /^\d{8}$/.test(str)) {
             return `${str.substr(0,4)}-${str.substr(4,2)}-${str.substr(6,2)}`;
         }
+        
+        // 如果是日期对象或已格式化的日期字符串
+        try {
+            const date = new Date(str);
+            if (!isNaN(date.getTime())) {
+                return date.toISOString().split('T')[0];
+            }
+        } catch (e) {
+            // 如果解析失败，返回原始字符串
+        }
+        
         return str;
     }
     
@@ -219,9 +272,6 @@ class PartyBuildingSystem {
     initUI() {
         // 更新时间显示
         this.updateTimeDisplay();
-        
-        // 初始化筛选器
-        this.initFilters();
         
         // 初始化表格
         this.initTable();
@@ -317,6 +367,9 @@ class PartyBuildingSystem {
         
         // 窗口大小变化
         window.addEventListener('resize', () => this.handleResize());
+        
+        // 图表类型切换
+        this.initChartControls();
     }
     
     // 图表初始化
@@ -342,62 +395,40 @@ class PartyBuildingSystem {
         
         this.charts[chartId] = echarts.init(chartDom);
         
-        // 设置默认配置
-        const config = this.getChartConfig(chartId, type);
-        this.charts[chartId].setOption(config);
+        // 设置默认空状态
+        this.setEmptyChart(chartId);
     }
     
-    getChartConfig(chartId, type) {
-        // 根据不同图表类型返回配置
-        const configs = {
-            'political-chart': {
-                title: { 
-                    text: '政治面貌分布',
-                    left: 'center',
-                    textStyle: { color: 'var(--text-primary)' }
-                },
-                tooltip: { trigger: 'item' },
-                legend: { 
-                    orient: 'vertical', 
-                    left: 'left',
-                    textStyle: { color: 'var(--text-secondary)' }
-                },
-                series: [{
-                    name: '政治面貌',
-                    type: 'pie',
-                    radius: '50%',
-                    data: [],
-                    emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' } }
-                }]
-            },
-            'process-chart': {
-                title: { 
-                    text: '入党流程阶段',
-                    left: 'center',
-                    textStyle: { color: 'var(--text-primary)' }
-                },
-                tooltip: { trigger: 'axis' },
-                xAxis: { 
-                    type: 'category', 
-                    data: [],
-                    axisLabel: { color: 'var(--text-secondary)' }
-                },
-                yAxis: { 
-                    type: 'value',
-                    axisLabel: { color: 'var(--text-secondary)' }
-                },
-                series: [{
-                    data: [],
-                    type: 'bar',
-                    showBackground: true,
-                    backgroundStyle: { color: 'rgba(180, 180, 180, 0.2)' },
-                    itemStyle: { color: '#d32f2f' }
-                }]
-            },
-            // 其他图表配置...
-        };
+    // 初始化图表控制
+    initChartControls() {
+        // 政治面貌图表切换
+        document.querySelectorAll('[data-chart="pie"], [data-chart="bar"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const chartType = e.target.dataset.chart;
+                this.updatePoliticalChart(chartType);
+                
+                // 更新按钮状态
+                document.querySelectorAll('[data-chart]').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+            });
+        });
         
-        return configs[chartId] || {};
+        // 入党流程图表切换
+        document.querySelectorAll('[data-chart="progress"], [data-chart="funnel"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const chartType = e.target.dataset.chart;
+                this.updateProcessChart(chartType);
+                
+                // 更新按钮状态
+                document.querySelectorAll('[data-chart]').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+            });
+        });
+        
+        // 班级图表类型选择
+        document.getElementById('class-chart-type')?.addEventListener('change', (e) => {
+            this.updateClassChart(e.target.value);
+        });
     }
     
     // 页面切换
@@ -431,6 +462,12 @@ class PartyBuildingSystem {
     }
     
     updateCurrentSection() {
+        if (!this.hasData || this.allData.length === 0) {
+            // 如果没有数据，显示空状态
+            this.updateEmptyState();
+            return;
+        }
+        
         switch(this.currentSection) {
             case 'dashboard':
                 this.updateDashboard();
@@ -453,22 +490,7 @@ class PartyBuildingSystem {
         }
     }
     
-    // 仪表盘更新
-    updateDashboard() {
-        if (!this.hasData) {
-            // 显示空状态
-            this.updateEmptyCharts();
-            return;
-        }
-        
-        // 更新统计卡片
-        this.updateStats();
-        
-        // 更新图表数据
-        this.updateCharts();
-    }
-    
-    updateEmptyCharts() {
+    updateEmptyState() {
         // 更新统计卡片为0
         document.getElementById('total-count').textContent = '0';
         document.getElementById('party-member-count').textContent = '0';
@@ -479,66 +501,114 @@ class PartyBuildingSystem {
         document.querySelectorAll('.stat-trend').forEach(trend => {
             trend.style.visibility = 'hidden';
         });
+        
+        // 设置空图表
+        Object.keys(this.charts).forEach(chartId => {
+            this.setEmptyChart(chartId);
+        });
+    }
+    
+    setEmptyChart(chartId) {
+        const chart = this.charts[chartId];
+        if (!chart) return;
+        
+        chart.setOption({
+            title: {
+                text: '暂无数据',
+                left: 'center',
+                top: 'center',
+                textStyle: {
+                    color: 'var(--text-disabled)',
+                    fontSize: 18,
+                    fontWeight: 'normal'
+                }
+            },
+            graphic: {
+                type: 'text',
+                left: 'center',
+                top: '60%',
+                style: {
+                    text: '请先上传数据文件',
+                    fill: 'var(--text-disabled)',
+                    fontSize: 14
+                }
+            }
+        });
+    }
+    
+    // 仪表盘更新
+    updateDashboard() {
+        if (!this.hasData || this.allData.length === 0) {
+            this.updateEmptyState();
+            return;
+        }
+        
+        // 更新统计卡片
+        this.updateStats();
+        
+        // 更新图表数据
+        this.updateCharts();
     }
     
     updateStats() {
         const data = this.filteredData;
         
         // 总人数
-        document.getElementById('total-count').textContent = data.length;
+        document.getElementById('total-count').textContent = data.length.toLocaleString();
         
-        // 党员数
-        const partyMembers = data.filter(item => 
-            item['政治面貌'] === '中共党员' || item['政治面貌'] === '中共预备党员'
-        ).length;
-        document.getElementById('party-member-count').textContent = partyMembers;
+        // 党员数（中共党员 + 中共预备党员）
+        const partyMembers = data.filter(item => {
+            const status = item['政治面貌'] || '';
+            return status.includes('党员');
+        }).length;
+        document.getElementById('party-member-count').textContent = partyMembers.toLocaleString();
         
         // 积极分子数
-        const activists = data.filter(item => 
-            item['入党流程阶段'] && (
-                item['入党流程阶段'].includes('入党积极分子') || 
-                item['入党流程阶段'].includes('积极分子培训结业')
-            )
-        ).length;
-        document.getElementById('activist-count').textContent = activists;
+        const activists = data.filter(item => {
+            const process = item['入党流程阶段'] || '';
+            const status = item['状态'] || '';
+            return process.includes('积极分子') || status.includes('积极分子');
+        }).length;
+        document.getElementById('activist-count').textContent = activists.toLocaleString();
         
         // 平均活动时数
-        const avgHours = data.length > 0 ? 
-            (data.reduce((sum, item) => sum + (item['活动时数'] || 0), 0) / data.length).toFixed(1) : 
+        const validHoursData = data.filter(item => item['活动时数'] > 0);
+        const avgHours = validHoursData.length > 0 ? 
+            (validHoursData.reduce((sum, item) => sum + (item['活动时数'] || 0), 0) / validHoursData.length).toFixed(1) : 
             0;
         document.getElementById('avg-hours').textContent = avgHours;
         
-        // 显示趋势箭头
+        // 显示趋势箭头（这里可以添加与上次数据的比较逻辑）
         document.querySelectorAll('.stat-trend').forEach(trend => {
             trend.style.visibility = 'visible';
+            // 暂时设置为0%
+            trend.innerHTML = '<i class="fas fa-arrow-up"></i> 0%';
         });
     }
     
     updateCharts() {
-        if (!this.hasData) return;
+        if (!this.hasData || this.allData.length === 0) return;
         
-        // 政治面貌分布
-        this.updatePoliticalChart();
-        
-        // 入党流程阶段
-        this.updateProcessChart();
-        
-        // 班级分布
-        this.updateClassChart();
+        // 更新所有图表
+        this.updatePoliticalChart('pie');
+        this.updateProcessChart('bar');
+        this.updateClassChart('bar');
     }
     
-    updatePoliticalChart() {
+    updatePoliticalChart(type = 'pie') {
         const chart = this.charts['political-chart'];
         if (!chart) return;
         
         const data = this.filteredData;
         const distribution = {};
         
+        // 统计政治面貌分布
         data.forEach(item => {
             const status = item['政治面貌'] || '未知';
             distribution[status] = (distribution[status] || 0) + 1;
         });
         
+        // 转换为图表数据格式
         const chartData = Object.entries(distribution).map(([name, value]) => ({
             name,
             value,
@@ -547,14 +617,116 @@ class PartyBuildingSystem {
             }
         }));
         
-        chart.setOption({
-            series: [{
-                data: chartData
-            }]
-        });
+        // 按数量排序
+        chartData.sort((a, b) => b.value - a.value);
+        
+        const colors = chartData.map(item => item.itemStyle.color);
+        const names = chartData.map(item => item.name);
+        const values = chartData.map(item => item.value);
+        
+        if (type === 'pie') {
+            // 饼图配置
+            chart.setOption({
+                title: {
+                    text: '政治面貌分布',
+                    left: 'center',
+                    textStyle: {
+                        color: 'var(--text-primary)',
+                        fontSize: 16
+                    }
+                },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: '{a} <br/>{b}: {c}人 ({d}%)'
+                },
+                legend: {
+                    orient: 'vertical',
+                    left: 'left',
+                    top: 'center',
+                    textStyle: {
+                        color: 'var(--text-secondary)'
+                    }
+                },
+                series: [{
+                    name: '政治面貌',
+                    type: 'pie',
+                    radius: ['40%', '70%'],
+                    avoidLabelOverlap: false,
+                    label: {
+                        show: false,
+                        position: 'center'
+                    },
+                    emphasis: {
+                        label: {
+                            show: true,
+                            fontSize: '18',
+                            fontWeight: 'bold'
+                        }
+                    },
+                    labelLine: {
+                        show: false
+                    },
+                    data: chartData,
+                    color: colors
+                }]
+            });
+        } else {
+            // 柱状图配置
+            chart.setOption({
+                title: {
+                    text: '政治面貌分布',
+                    left: 'center',
+                    textStyle: {
+                        color: 'var(--text-primary)',
+                        fontSize: 16
+                    }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: names,
+                    axisLabel: {
+                        color: 'var(--text-secondary)',
+                        rotate: 45
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    axisLabel: {
+                        color: 'var(--text-secondary)'
+                    }
+                },
+                series: [{
+                    name: '人数',
+                    type: 'bar',
+                    data: values.map((value, index) => ({
+                        value,
+                        itemStyle: {
+                            color: colors[index]
+                        }
+                    })),
+                    barWidth: '60%',
+                    label: {
+                        show: true,
+                        position: 'top'
+                    }
+                }]
+            });
+        }
     }
     
-    updateProcessChart() {
+    updateProcessChart(type = 'bar') {
         const chart = this.charts['process-chart'];
         if (!chart) return;
         
@@ -567,6 +739,7 @@ class PartyBuildingSystem {
             '通过600题': 0
         };
         
+        // 统计入党流程阶段分布
         data.forEach(item => {
             const process = item['入党流程阶段'] || '未开始';
             let matched = false;
@@ -586,59 +759,338 @@ class PartyBuildingSystem {
         
         const xData = Object.keys(processData);
         const yData = Object.values(processData);
+        const colors = xData.map(key => this.getProcessColor(key));
         
-        chart.setOption({
-            xAxis: { data: xData },
-            series: [{
-                data: yData.map((value, index) => ({
-                    value,
-                    itemStyle: {
-                        color: this.getProcessColor(xData[index])
+        if (type === 'bar') {
+            // 柱状图配置
+            chart.setOption({
+                title: {
+                    text: '入党流程阶段分布',
+                    left: 'center',
+                    textStyle: {
+                        color: 'var(--text-primary)',
+                        fontSize: 16
                     }
-                }))
-            }]
-        });
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    },
+                    formatter: '{b}: {c}人'
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: xData,
+                    axisLabel: {
+                        color: 'var(--text-secondary)',
+                        rotate: 45
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    axisLabel: {
+                        color: 'var(--text-secondary)'
+                    }
+                },
+                series: [{
+                    name: '人数',
+                    type: 'bar',
+                    data: yData.map((value, index) => ({
+                        value,
+                        itemStyle: {
+                            color: colors[index]
+                        }
+                    })),
+                    barWidth: '60%',
+                    label: {
+                        show: true,
+                        position: 'top'
+                    }
+                }]
+            });
+        } else if (type === 'funnel') {
+            // 漏斗图配置
+            const funnelData = xData.map((name, index) => ({
+                name,
+                value: yData[index],
+                itemStyle: {
+                    color: colors[index]
+                }
+            })).filter(item => item.value > 0);
+            
+            chart.setOption({
+                title: {
+                    text: '入党流程阶段分布（漏斗图）',
+                    left: 'center',
+                    textStyle: {
+                        color: 'var(--text-primary)',
+                        fontSize: 16
+                    }
+                },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: '{a} <br/>{b}: {c}人'
+                },
+                legend: {
+                    bottom: 10,
+                    left: 'center',
+                    textStyle: {
+                        color: 'var(--text-secondary)'
+                    }
+                },
+                series: [{
+                    name: '入党流程',
+                    type: 'funnel',
+                    left: '10%',
+                    top: 60,
+                    bottom: 60,
+                    width: '80%',
+                    min: 0,
+                    max: Math.max(...yData),
+                    minSize: '0%',
+                    maxSize: '100%',
+                    sort: 'descending',
+                    gap: 2,
+                    label: {
+                        show: true,
+                        position: 'inside'
+                    },
+                    labelLine: {
+                        length: 10,
+                        lineStyle: {
+                            width: 1,
+                            type: 'solid'
+                        }
+                    },
+                    itemStyle: {
+                        borderColor: '#fff',
+                        borderWidth: 1
+                    },
+                    emphasis: {
+                        label: {
+                            fontSize: 20
+                        }
+                    },
+                    data: funnelData
+                }]
+            });
+        }
     }
     
-    updateClassChart() {
+    updateClassChart(type = 'bar') {
         const chart = this.charts['class-chart'];
         if (!chart) return;
         
         const data = this.filteredData;
         const classData = {};
         
+        // 统计各班级人数
         data.forEach(item => {
             const className = item['班级'] || '未知班级';
             classData[className] = (classData[className] || 0) + 1;
         });
         
-        const xData = Object.keys(classData);
-        const yData = Object.values(classData);
+        // 转换为数组并排序
+        const sortedClasses = Object.entries(classData)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 15); // 最多显示15个班级
         
-        chart.setOption({
-            xAxis: { 
-                data: xData,
-                axisLabel: {
-                    rotate: 45,
-                    color: 'var(--text-secondary)'
-                }
-            },
-            yAxis: {
-                axisLabel: {
-                    color: 'var(--text-secondary)'
-                }
-            },
-            series: [{
-                data: yData,
-                type: 'bar',
-                itemStyle: {
-                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                        {offset: 0, color: '#d32f2f'},
-                        {offset: 1, color: '#ff6659'}
-                    ])
-                }
-            }]
-        });
+        const xData = sortedClasses.map(([name]) => name);
+        const yData = sortedClasses.map(([, value]) => value);
+        
+        if (type === 'bar') {
+            // 柱状图配置
+            chart.setOption({
+                title: {
+                    text: '各班级人数分布',
+                    left: 'center',
+                    textStyle: {
+                        color: 'var(--text-primary)',
+                        fontSize: 16
+                    }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    },
+                    formatter: '{b}: {c}人'
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: xData,
+                    axisLabel: {
+                        color: 'var(--text-secondary)',
+                        rotate: 45,
+                        fontSize: 12
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    axisLabel: {
+                        color: 'var(--text-secondary)'
+                    }
+                },
+                series: [{
+                    name: '人数',
+                    type: 'bar',
+                    data: yData,
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#d32f2f' },
+                            { offset: 1, color: '#ff6659' }
+                        ])
+                    },
+                    barWidth: '60%',
+                    label: {
+                        show: true,
+                        position: 'top',
+                        fontSize: 12
+                    }
+                }]
+            });
+        } else if (type === 'line') {
+            // 折线图配置
+            chart.setOption({
+                title: {
+                    text: '各班级人数分布',
+                    left: 'center',
+                    textStyle: {
+                        color: 'var(--text-primary)',
+                        fontSize: 16
+                    }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    formatter: '{b}: {c}人'
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: xData,
+                    axisLabel: {
+                        color: 'var(--text-secondary)',
+                        rotate: 45,
+                        fontSize: 12
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    axisLabel: {
+                        color: 'var(--text-secondary)'
+                    }
+                },
+                series: [{
+                    name: '人数',
+                    type: 'line',
+                    data: yData,
+                    itemStyle: {
+                        color: '#d32f2f'
+                    },
+                    lineStyle: {
+                        width: 3
+                    },
+                    symbol: 'circle',
+                    symbolSize: 8,
+                    label: {
+                        show: true,
+                        position: 'top',
+                        fontSize: 12
+                    }
+                }]
+            });
+        } else if (type === 'stack') {
+            // 堆叠图配置（按政治面貌）
+            const politicalStatuses = ['中共党员', '中共预备党员', '共青团员', '群众'];
+            const seriesData = politicalStatuses.map(status => {
+                const statusData = {};
+                xData.forEach(className => {
+                    statusData[className] = 0;
+                });
+                
+                data.forEach(item => {
+                    const className = item['班级'] || '未知班级';
+                    const itemStatus = item['政治面貌'] || '群众';
+                    if (itemStatus === status && xData.includes(className)) {
+                        statusData[className] = (statusData[className] || 0) + 1;
+                    }
+                });
+                
+                return {
+                    name: status,
+                    type: 'bar',
+                    stack: 'total',
+                    data: xData.map(className => statusData[className]),
+                    itemStyle: {
+                        color: this.getStatusColor(status)
+                    }
+                };
+            });
+            
+            chart.setOption({
+                title: {
+                    text: '各班级政治面貌分布',
+                    left: 'center',
+                    textStyle: {
+                        color: 'var(--text-primary)',
+                        fontSize: 16
+                    }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    }
+                },
+                legend: {
+                    bottom: 10,
+                    left: 'center',
+                    textStyle: {
+                        color: 'var(--text-secondary)'
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: xData,
+                    axisLabel: {
+                        color: 'var(--text-secondary)',
+                        rotate: 45,
+                        fontSize: 12
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    axisLabel: {
+                        color: 'var(--text-secondary)'
+                    }
+                },
+                series: seriesData
+            });
+        }
     }
     
     // 表格更新
@@ -661,34 +1113,36 @@ class PartyBuildingSystem {
         
         pageData.forEach((item, index) => {
             const rowNumber = startIndex + index + 1;
+            const activityHours = item['活动时数'] || 0;
+            const progressWidth = Math.min(activityHours, 100);
             
             html += `
             <tr>
                 <td>
                     <div class="table-cell">
-                        <span>${item['姓名'] || '--'}</span>
+                        <span>${this.escapeHtml(item['姓名'] || '--')}</span>
                     </div>
                 </td>
-                <td>${item['学号'] || '--'}</td>
-                <td>${item['班级'] || '--'}</td>
+                <td>${this.escapeHtml(item['学号'] || '--')}</td>
+                <td>${this.escapeHtml(item['班级'] || '--')}</td>
                 <td>
                     <span class="status-badge status-${this.getStatusClass(item['政治面貌'])}">
-                        ${item['政治面貌'] || '--'}
+                        ${this.escapeHtml(item['政治面貌'] || '--')}
                     </span>
                 </td>
-                <td>${item['入党流程阶段'] || '--'}</td>
+                <td>${this.escapeHtml(item['入党流程阶段'] || '--')}</td>
                 <td>
                     <div class="progress-cell">
                         <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${Math.min(item['活动时数'] || 0, 100)}%"></div>
+                            <div class="progress-fill" style="width: ${progressWidth}%"></div>
                         </div>
-                        <span>${item['活动时数'] || 0}</span>
+                        <span>${activityHours}</span>
                     </div>
                 </td>
-                <td>${item['申请入党时间'] || '--'}</td>
+                <td>${this.escapeHtml(item['申请入党时间'] || '--')}</td>
                 <td>
-                    <span class="status-badge status-${item['状态']}">
-                        ${item['状态']}
+                    <span class="status-badge status-${this.getStatusClass(item['状态'])}">
+                        ${this.escapeHtml(item['状态'])}
                     </span>
                 </td>
                 <td>
@@ -716,7 +1170,7 @@ class PartyBuildingSystem {
         document.getElementById('current-page').textContent = this.currentPage;
         document.getElementById('total-pages').textContent = totalPages;
         
-        const start = (this.currentPage - 1) * this.pageSize + 1;
+        const start = this.filteredData.length > 0 ? (this.currentPage - 1) * this.pageSize + 1 : 0;
         const end = Math.min(start + this.pageSize - 1, this.filteredData.length);
         
         document.getElementById('page-start').textContent = start;
@@ -729,19 +1183,19 @@ class PartyBuildingSystem {
         const nextPageBtn = document.getElementById('next-page');
         const lastPageBtn = document.getElementById('last-page');
         
-        if (firstPageBtn) firstPageBtn.disabled = this.currentPage <= 1;
-        if (prevPageBtn) prevPageBtn.disabled = this.currentPage <= 1;
-        if (nextPageBtn) nextPageBtn.disabled = this.currentPage >= totalPages;
-        if (lastPageBtn) lastPageBtn.disabled = this.currentPage >= totalPages;
+        if (firstPageBtn) firstPageBtn.disabled = this.currentPage <= 1 || this.filteredData.length === 0;
+        if (prevPageBtn) prevPageBtn.disabled = this.currentPage <= 1 || this.filteredData.length === 0;
+        if (nextPageBtn) nextPageBtn.disabled = this.currentPage >= totalPages || this.filteredData.length === 0;
+        if (lastPageBtn) lastPageBtn.disabled = this.currentPage >= totalPages || this.filteredData.length === 0;
     }
     
     getTotalPages() {
-        return Math.max(1, Math.ceil(this.filteredData.length / this.pageSize));
+        return this.filteredData.length > 0 ? Math.max(1, Math.ceil(this.filteredData.length / this.pageSize)) : 1;
     }
     
     // 筛选功能
     applyFilters() {
-        if (!this.hasData) {
+        if (!this.hasData || this.allData.length === 0) {
             this.filteredData = [];
             this.updateMemberTable();
             return;
@@ -757,15 +1211,15 @@ class PartyBuildingSystem {
         const sortBy = document.getElementById('sort-by')?.value;
         
         // 应用筛选
-        if (classFilter) {
+        if (classFilter && classFilter !== '') {
             this.filteredData = this.filteredData.filter(item => item['班级'] === classFilter);
         }
         
-        if (politicalFilter) {
+        if (politicalFilter && politicalFilter !== '') {
             this.filteredData = this.filteredData.filter(item => item['政治面貌'] === politicalFilter);
         }
         
-        if (processFilter) {
+        if (processFilter && processFilter !== '') {
             this.filteredData = this.filteredData.filter(item => 
                 item['入党流程阶段'] && item['入党流程阶段'].includes(processFilter)
             );
@@ -790,7 +1244,9 @@ class PartyBuildingSystem {
                     case 'hours':
                         return (b['活动时数'] || 0) - (a['活动时数'] || 0);
                     case 'date':
-                        return new Date(b['申请入党时间'] || 0) - new Date(a['申请入党时间'] || 0);
+                        const dateA = new Date(a['申请入党时间'] || 0);
+                        const dateB = new Date(b['申请入党时间'] || 0);
+                        return dateB - dateA;
                     default:
                         return 0;
                 }
@@ -844,6 +1300,28 @@ class PartyBuildingSystem {
         this.updateMemberTable();
     }
     
+    // 初始化班级筛选器选项
+    updateClassFilterOptions() {
+        const classFilter = document.getElementById('class-filter');
+        if (!classFilter) return;
+        
+        // 清空现有选项
+        classFilter.innerHTML = '<option value="">班级（全部）</option>';
+        
+        if (!this.hasData || this.allData.length === 0) return;
+        
+        // 获取所有不重复的班级并排序
+        const classes = [...new Set(this.allData.map(item => item['班级']).filter(Boolean))].sort();
+        
+        // 添加班级选项
+        classes.forEach(className => {
+            const option = document.createElement('option');
+            option.value = className;
+            option.textContent = className;
+            classFilter.appendChild(option);
+        });
+    }
+    
     // 数据导出
     exportData() {
         if (!this.hasData || this.allData.length === 0) {
@@ -851,15 +1329,20 @@ class PartyBuildingSystem {
             return;
         }
         
-        const worksheet = XLSX.utils.json_to_sheet(this.allData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "党建数据");
-        
-        const date = new Date();
-        const filename = `党建数据_${date.getFullYear()}${(date.getMonth()+1).toString().padStart(2,'0')}${date.getDate().toString().padStart(2,'0')}.xlsx`;
-        
-        XLSX.writeFile(workbook, filename);
-        this.showNotification('数据导出成功', 'success');
+        try {
+            const worksheet = XLSX.utils.json_to_sheet(this.allData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "党建数据");
+            
+            const date = new Date();
+            const filename = `党建数据_${date.getFullYear()}${(date.getMonth()+1).toString().padStart(2,'0')}${date.getDate().toString().padStart(2,'0')}.xlsx`;
+            
+            XLSX.writeFile(workbook, filename);
+            this.showNotification('数据导出成功', 'success');
+        } catch (error) {
+            console.error('导出数据失败:', error);
+            this.showNotification('导出数据失败，请重试', 'error');
+        }
     }
     
     // 下载示例文件
@@ -869,47 +1352,70 @@ class PartyBuildingSystem {
             {
                 '姓名': '张三',
                 '学号': '20210001',
-                '班级': '计算机1班',
+                '班级': '大数据2201',
                 '政治面貌': '中共党员',
                 '入党流程阶段': '通过600题',
                 '活动时数': 120,
-                '申请入党时间': '2022-03-15',
-                '出生年月日': '2000-05-20',
+                '修正党时': -50,
+                '出生年月日': '20001204',
+                '入校时间': '20220903',
+                '申请入党时间': '20220905',
+                '递交入党申请书年龄（岁）': 19,
                 '600题考试成绩': 95,
-                '积极分子结业成绩': 88
+                '600题考试时间': '20250319',
+                '党支部接收入党积极分子时间': '20230428',
+                '积极分子结业成绩': 88,
+                '备注': ''
             },
             {
                 '姓名': '李四',
                 '学号': '20210002',
-                '班级': '计算机1班',
+                '班级': '大数据2201',
                 '政治面貌': '中共预备党员',
                 '入党流程阶段': '积极分子培训结业',
                 '活动时数': 85,
-                '申请入党时间': '2022-09-10',
-                '出生年月日': '2001-08-12',
+                '修正党时': -30,
+                '出生年月日': '20010812',
+                '入校时间': '20220903',
+                '申请入党时间': '20220910',
+                '递交入党申请书年龄（岁）': 20,
                 '600题考试成绩': 0,
-                '积极分子结业成绩': 92
+                '600题考试时间': '',
+                '党支部接收入党积极分子时间': '20230428',
+                '积极分子结业成绩': 92,
+                '备注': ''
             },
             {
                 '姓名': '王五',
                 '学号': '20210003',
-                '班级': '计算机2班',
+                '班级': '大数据2202',
                 '政治面貌': '共青团员',
                 '入党流程阶段': '入党积极分子',
                 '活动时数': 65,
-                '申请入党时间': '2023-01-20',
-                '出生年月日': '2002-03-05',
+                '修正党时': -20,
+                '出生年月日': '20020305',
+                '入校时间': '20220903',
+                '申请入党时间': '20230120',
+                '递交入党申请书年龄（岁）': 20,
                 '600题考试成绩': 0,
-                '积极分子结业成绩': 0
+                '600题考试时间': '',
+                '党支部接收入党积极分子时间': '20230428',
+                '积极分子结业成绩': 0,
+                '备注': ''
             }
         ];
         
-        const worksheet = XLSX.utils.json_to_sheet(sampleData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "党建数据示例");
-        
-        XLSX.writeFile(workbook, "党建数据示例文件.xlsx");
-        this.showNotification('示例文件下载成功', 'success');
+        try {
+            const worksheet = XLSX.utils.json_to_sheet(sampleData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "党建数据示例");
+            
+            XLSX.writeFile(workbook, "党建数据示例文件.xlsx");
+            this.showNotification('示例文件下载成功', 'success');
+        } catch (error) {
+            console.error('下载示例文件失败:', error);
+            this.showNotification('下载示例文件失败', 'error');
+        }
     }
     
     // 工具函数
@@ -935,18 +1441,29 @@ class PartyBuildingSystem {
     }
     
     getStatusClass(status) {
-        switch(status) {
-            case '中共党员': return 'party';
-            case '中共预备党员': return 'probationary';
-            case '共青团员': return 'activist';
-            case '群众': return 'applicant';
-            default: return '';
-        }
+        if (!status) return '';
+        
+        const statusStr = status.toString().toLowerCase();
+        if (statusStr.includes('党员')) return 'party';
+        if (statusStr.includes('预备')) return 'probationary';
+        if (statusStr.includes('积极分子')) return 'activist';
+        if (statusStr.includes('申请人')) return 'applicant';
+        if (statusStr.includes('群众')) return 'mass';
+        return '';
+    }
+    
+    escapeHtml(text) {
+        if (!text) return '';
+        return text.toString()
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
     
     // UI辅助函数
     showLoading(message = '加载中...') {
-        // 创建或显示加载层
         let loadingOverlay = document.getElementById('loading-overlay');
         if (!loadingOverlay) {
             loadingOverlay = document.createElement('div');
@@ -1031,7 +1548,7 @@ class PartyBuildingSystem {
                 dataStatusElement.className = 'info-value status-ready';
             }
             if (dataCountElement) {
-                dataCountElement.textContent = this.allData.length;
+                dataCountElement.textContent = this.allData.length.toLocaleString();
             }
         } else {
             if (dataStatusElement) {
@@ -1048,17 +1565,19 @@ class PartyBuildingSystem {
         const data = this.allData;
         
         // 更新数据总量
-        document.getElementById('data-total').textContent = data.length;
+        document.getElementById('data-total').textContent = data.length.toLocaleString();
         
         // 更新字段数量
         const columns = data.length > 0 ? Object.keys(data[0]).length : 0;
         document.getElementById('data-columns').textContent = columns;
         
-        // 计算数据完整率
+        // 计算数据完整率（姓名、学号、班级都有的记录）
         let completeness = 0;
         if (data.length > 0) {
             const completeRecords = data.filter(item => {
-                return item['姓名'] && item['学号'] && item['班级'];
+                return item['姓名'] && item['姓名'].trim() !== '' && 
+                       item['学号'] && item['学号'].trim() !== '' && 
+                       item['班级'] && item['班级'].trim() !== '';
             }).length;
             completeness = Math.round((completeRecords / data.length) * 100);
         }
@@ -1145,42 +1664,14 @@ class PartyBuildingSystem {
         this.resizeCharts();
     }
     
-    // 初始化筛选器
-    initFilters() {
-        // 初始化班级筛选器选项
-        this.updateClassFilterOptions();
-    }
-    
-    updateClassFilterOptions() {
-        const classFilter = document.getElementById('class-filter');
-        if (!classFilter) return;
-        
-        // 清空现有选项
-        classFilter.innerHTML = '<option value="">班级（全部）</option>';
-        
-        if (!this.hasData) return;
-        
-        // 获取所有不重复的班级
-        const classes = [...new Set(this.allData.map(item => item['班级']).filter(Boolean))];
-        
-        // 添加班级选项
-        classes.forEach(className => {
-            const option = document.createElement('option');
-            option.value = className;
-            option.textContent = className;
-            classFilter.appendChild(option);
-        });
-    }
-    
     // 初始化表格
     initTable() {
-        // 初始化表格为空状态
         this.updateMemberTable();
     }
     
     // 其他页面更新函数（简化为空状态处理）
     updateProcessView() {
-        if (!this.hasData) {
+        if (!this.hasData || this.allData.length === 0) {
             // 显示空状态
             document.getElementById('process-applicants').textContent = '0';
             document.getElementById('process-activists').textContent = '0';
@@ -1199,7 +1690,7 @@ class PartyBuildingSystem {
     }
     
     updateActivityView() {
-        if (!this.hasData) {
+        if (!this.hasData || this.allData.length === 0) {
             // 显示空状态
             document.getElementById('total-activity-hours').textContent = '0';
             document.getElementById('avg-participation-rate').textContent = '0%';
@@ -1212,7 +1703,7 @@ class PartyBuildingSystem {
     }
     
     updateAnalysisView() {
-        if (!this.hasData) {
+        if (!this.hasData || this.allData.length === 0) {
             // 显示空状态
             const tableBody = document.getElementById('analysis-table-body');
             if (tableBody) {
@@ -1231,24 +1722,140 @@ class PartyBuildingSystem {
     
     // 成员详情
     showDetail(studentId) {
-        if (!this.hasData) {
+        if (!this.hasData || this.allData.length === 0) {
             this.showNotification('暂无数据，请先上传数据文件', 'warning');
             return;
         }
         
         const member = this.allData.find(item => item['学号'] === studentId);
-        if (!member) return;
+        if (!member) {
+            this.showNotification('未找到该成员信息', 'warning');
+            return;
+        }
         
-        // 创建模态框
+        // 创建详情模态框
         this.createDetailModal(member);
     }
     
     createDetailModal(member) {
-        // 模态框创建代码...
+        // 创建模态框内容
+        const modalContent = `
+            <div class="modal-overlay" id="detail-modal">
+                <div class="modal-content" style="max-width: 800px;">
+                    <div class="modal-header">
+                        <h3><i class="fas fa-user-circle"></i> 成员详细信息</h3>
+                        <button class="modal-close" onclick="system.closeModal()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="member-detail">
+                            <div class="detail-header">
+                                <div class="member-avatar">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <div class="member-info">
+                                    <h2>${this.escapeHtml(member['姓名'])}</h2>
+                                    <p class="member-id">学号: ${this.escapeHtml(member['学号'])}</p>
+                                    <p class="member-class">班级: ${this.escapeHtml(member['班级'])}</p>
+                                </div>
+                                <div class="member-status">
+                                    <span class="status-badge status-${this.getStatusClass(member['政治面貌'])}">
+                                        ${this.escapeHtml(member['政治面貌'])}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="detail-grid">
+                                <div class="detail-section">
+                                    <h4><i class="fas fa-id-card"></i> 基本信息</h4>
+                                    <div class="detail-item">
+                                        <span class="detail-label">出生日期</span>
+                                        <span class="detail-value">${this.escapeHtml(member['出生年月日'] || '--')}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span class="detail-label">入校时间</span>
+                                        <span class="detail-value">${this.escapeHtml(member['入校时间'] || '--')}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span class="detail-label">入团时间</span>
+                                        <span class="detail-value">${this.escapeHtml(member['入团时间'] || '--')}</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="detail-section">
+                                    <h4><i class="fas fa-flag"></i> 入党信息</h4>
+                                    <div class="detail-item">
+                                        <span class="detail-label">申请入党时间</span>
+                                        <span class="detail-value">${this.escapeHtml(member['申请入党时间'] || '--')}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span class="detail-label">入党流程阶段</span>
+                                        <span class="detail-value">${this.escapeHtml(member['入党流程阶段'] || '--')}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span class="detail-label">党支部接收时间</span>
+                                        <span class="detail-value">${this.escapeHtml(member['党支部接收入党积极分子时间'] || '--')}</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="detail-section">
+                                    <h4><i class="fas fa-chart-line"></i> 活动与成绩</h4>
+                                    <div class="detail-item">
+                                        <span class="detail-label">活动时数</span>
+                                        <span class="detail-value">${member['活动时数'] || 0}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span class="detail-label">600题考试成绩</span>
+                                        <span class="detail-value">${member['600题考试成绩'] || 0}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span class="detail-label">积极分子结业成绩</span>
+                                        <span class="detail-value">${member['积极分子结业成绩'] || 0}</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="detail-section">
+                                    <h4><i class="fas fa-sticky-note"></i> 备注信息</h4>
+                                    <div class="detail-item full-width">
+                                        <span class="detail-label">团员资料备注</span>
+                                        <span class="detail-value">${this.escapeHtml(member['团员资料备注'] || '--')}</span>
+                                    </div>
+                                    <div class="detail-item full-width">
+                                        <span class="detail-label">备注</span>
+                                        <span class="detail-value">${this.escapeHtml(member['备注'] || '--')}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-secondary" onclick="system.closeModal()">
+                            <i class="fas fa-times"></i> 关闭
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // 添加到页面
+        const modalContainer = document.getElementById('modal-container');
+        modalContainer.innerHTML = modalContent;
+        
+        // 显示模态框
+        document.getElementById('detail-modal').style.display = 'flex';
+    }
+    
+    closeModal() {
+        const modal = document.getElementById('detail-modal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.remove();
+        }
     }
     
     editMember(studentId) {
-        if (!this.hasData) {
+        if (!this.hasData || this.allData.length === 0) {
             this.showNotification('暂无数据，请先上传数据文件', 'warning');
             return;
         }
@@ -1276,7 +1883,7 @@ class PartyBuildingSystem {
     }
     
     generateAnalysisReport() {
-        if (!this.hasData) {
+        if (!this.hasData || this.allData.length === 0) {
             this.showNotification('暂无数据可生成报告，请先上传数据文件', 'warning');
             return;
         }
@@ -1284,7 +1891,7 @@ class PartyBuildingSystem {
     }
     
     backupData() {
-        if (!this.hasData) {
+        if (!this.hasData || this.allData.length === 0) {
             this.showNotification('暂无数据可备份，请先上传数据文件', 'warning');
             return;
         }
@@ -1296,7 +1903,41 @@ class PartyBuildingSystem {
     }
     
     exportCSV() {
-        this.showNotification('CSV导出功能开发中...', 'info');
+        if (!this.hasData || this.allData.length === 0) {
+            this.showNotification('暂无数据可导出，请先上传数据文件', 'warning');
+            return;
+        }
+        
+        try {
+            // 转换为CSV格式
+            const headers = Object.keys(this.allData[0]);
+            const csvContent = [
+                headers.join(','),
+                ...this.allData.map(row => 
+                    headers.map(header => 
+                        JSON.stringify(row[header] || '')
+                    ).join(',')
+                )
+            ].join('\n');
+            
+            // 创建下载链接
+            const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', `党建数据_${new Date().toISOString().slice(0,10)}.csv`);
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            this.showNotification('CSV导出成功', 'success');
+        } catch (error) {
+            console.error('导出CSV失败:', error);
+            this.showNotification('导出CSV失败，请重试', 'error');
+        }
     }
     
     exportPDF() {
@@ -1347,6 +1988,125 @@ document.addEventListener('DOMContentLoaded', () => {
     if (themeIcon) {
         themeIcon.className = savedTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
     }
+    
+    // 添加加载层样式
+    const style = document.createElement('style');
+    style.textContent = `
+        .loading-overlay {
+            position: fixed;
+            top: 64px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(4px);
+        }
+        
+        .loading-content {
+            text-align: center;
+        }
+        
+        .loading-spinner {
+            margin-bottom: 20px;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #d32f2f;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .notification {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: white;
+            border-radius: 8px;
+            padding: 15px 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 10000;
+            animation: slideInRight 0.3s ease;
+            border-left: 4px solid #2196f3;
+        }
+        
+        .notification-success {
+            border-left-color: #4caf50;
+        }
+        
+        .notification-error {
+            border-left-color: #f44336;
+        }
+        
+        .notification-warning {
+            border-left-color: #ff9800;
+        }
+        
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
+        }
+    `;
+    document.head.appendChild(style);
 });
 
 // 全局函数供HTML调用
