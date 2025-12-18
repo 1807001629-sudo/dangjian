@@ -1,3 +1,4 @@
+<!-- src/components/layout/Sidebar.vue -->
 <template>
   <aside class="sidebar" :class="{ collapsed: collapsed }">
     <div class="sidebar-header">
@@ -6,18 +7,20 @@
         {{ collapsed ? '→' : '←' }}
       </button>
     </div>
-    <div class="sidebar-menu">
-      <router-link
+    
+    <nav class="sidebar-menu">
+      <div 
         v-for="item in menuItems"
         :key="item.path"
-        :to="item.path"
         class="menu-item"
-        active-class="active"
+        :class="{ active: isActive(item.path) }"
+        @click="handleMenuClick(item)"
       >
         <span class="menu-icon">{{ item.icon }}</span>
         <span v-if="!collapsed" class="menu-text">{{ item.name }}</span>
-      </router-link>
-    </div>
+      </div>
+    </nav>
+    
     <div class="sidebar-footer">
       <div class="system-info">
         <div v-if="!collapsed" class="info-item">
@@ -31,45 +34,81 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, defineEmits, defineProps } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 
 const props = defineProps({
   totalCount: {
     type: Number,
     default: 0
   }
-});
+})
 
-const router = useRouter();
-const collapsed = ref(false);
+const emit = defineEmits(['toggle'])
 
-// 只显示已创建页面的菜单项
-// 只显示已创建页面的菜单项
+const router = useRouter()
+const route = useRoute()
+const collapsed = ref(false)
+
 const menuItems = [
   { name: '数据看板', path: '/', icon: '📊' },
   { name: '人员管理', path: '/members', icon: '👥' },
   { name: '流程跟踪', path: '/process', icon: '📈' },
   { name: '活动管理', path: '/activities', icon: '🎯' },
   { name: '数据分析', path: '/analytics', icon: '📊' }
-];
+]
 
 const currentDate = computed(() => {
-  const now = new Date();
+  const now = new Date()
   return now.toLocaleDateString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit'
-  });
-});
+  })
+})
+
+const isActive = (path) => {
+  if (path === '/') {
+    return route.path === '/'
+  }
+  return route.path === path
+}
+
+const handleMenuClick = (item) => {
+  console.log('=== 菜单点击调试 ===')
+  console.log('点击的菜单项:', item)
+  console.log('当前路由:', route.path)
+  console.log('目标路由:', item.path)
+  console.log('是否相同:', route.path === item.path)
+  
+  if (route.path !== item.path) {
+    console.log('执行路由跳转到:', item.path)
+    router.push(item.path)
+      .then(() => {
+        console.log('路由跳转成功')
+      })
+      .catch((error) => {
+        console.error('路由跳转失败:', error)
+      })
+  } else {
+    console.log('已经在目标页面')
+  }
+}
 
 const toggleCollapse = () => {
-  collapsed.value = !collapsed.value;
-};
+  collapsed.value = !collapsed.value
+  emit('toggle', collapsed.value)
+}
+
+// 暴露方法以便调试
+defineExpose({
+  collapsed,
+  menuItems,
+  handleMenuClick
+})
 </script>
 
 <style scoped>
-/* 样式保持不变 */
 .sidebar {
   width: 250px;
   background: white;
@@ -140,6 +179,10 @@ const toggleCollapse = () => {
   margin: 4px 12px;
   border-radius: 6px;
   white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .menu-item:hover {
@@ -153,15 +196,34 @@ const toggleCollapse = () => {
   font-weight: 500;
 }
 
+.menu-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #c7000a;
+  border-radius: 0 3px 3px 0;
+}
+
+/* 强制可点击 */
+.menu-item * {
+  pointer-events: none;
+}
+
 .menu-icon {
   font-size: 18px;
   margin-right: 12px;
   flex-shrink: 0;
+  min-width: 24px;
+  text-align: center;
 }
 
 .menu-text {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-footer {

@@ -103,13 +103,6 @@
             </option>
           </select>
 
-          <select v-model="filter.activityHours" @change="handleFilter" class="filter-select">
-            <option value="">活动时数</option>
-            <option value="10以下">10小时以下</option>
-            <option value="10-20">10-20小时</option>
-            <option value="20-50">20-50小时</option>
-            <option value="50以上">50小时以上</option>
-          </select>
 
           <button class="reset-button" @click="resetFilters">
             重置筛选

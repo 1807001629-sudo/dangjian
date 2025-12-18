@@ -2,11 +2,11 @@
   <div class="app">
     <Navbar />
     <div class="app-layout">
-      <Sidebar :total-count="totalMembers" @toggle="handleSidebarToggle" />
-      <main class="app-main" :class="{ 'collapsed': sidebarCollapsed }">
+      <Sidebar :total-count="totalMembers" />
+      <main class="app-main">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" :sidebar-collapsed="sidebarCollapsed" />
+            <component :is="Component" />
           </transition>
         </router-view>
       </main>
@@ -15,7 +15,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, provide } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import Navbar from '@/components/layout/Navbar.vue';
 import Sidebar from '@/components/layout/Sidebar.vue';
 import rawData from '@/assets/data.json';
@@ -23,19 +23,10 @@ import rawData from '@/assets/data.json';
 console.log('App.vue 加载');
 
 const membersData = ref([]);
-const sidebarCollapsed = ref(false);
 
 const totalMembers = computed(() => {
   return membersData.value.length || 0;
 });
-
-// 提供给子组件使用
-provide('sidebarCollapsed', sidebarCollapsed);
-
-const handleSidebarToggle = (collapsed) => {
-  sidebarCollapsed.value = collapsed;
-  console.log('侧边栏状态:', collapsed ? '收起' : '展开');
-};
 
 onMounted(() => {
   console.log('App.vue mounted');
@@ -62,7 +53,7 @@ body {
   line-height: 1.5715;
   color: #262626;
   background: #fafafa;
-  overflow-x: hidden; /* 防止横向滚动 */
+  overflow-x: hidden;
 }
 
 .app {
@@ -78,37 +69,31 @@ body {
   position: relative;
 }
 
-/* 侧边栏固定定位 */
+/* 关键修改：简化侧边栏和主内容的交互 */
 .sidebar {
   width: 250px;
-  background: white;
-  border-right: 1px solid #f0f0f0;
-  display: flex;
-  flex-direction: column;
   height: calc(100vh - 64px);
   position: fixed;
-  top: 64px;
   left: 0;
-  transition: all 0.3s ease;
-  overflow: hidden;
-  z-index: 999;
-}
-
-.sidebar.collapsed {
-  width: 60px;
+  top: 64px;
+  background: white;
+  border-right: 1px solid #f0f0f0;
+  z-index: 1000;
 }
 
 /* 主要内容区域 - 关键修改 */
 .app-main {
   flex: 1;
-  margin-left: 250px; /* 侧边栏宽度 */
-  transition: all 0.3s ease;
+  margin-left: 250px; /* 与侧边栏宽度一致 */
   min-width: 0; /* 防止内容溢出 */
-  overflow-x: hidden; /* 防止横向滚动 */
+  transition: margin-left 0.3s ease;
+  padding: 20px;
+  background: #fafafa;
+  min-height: calc(100vh - 64px);
 }
 
 /* 侧边栏收起时的样式 */
-.app-main.collapsed {
+.sidebar.collapsed ~ .app-main {
   margin-left: 60px;
 }
 
@@ -147,6 +132,7 @@ body {
 @media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%);
+    width: 250px;
   }
   
   .sidebar.collapsed {
@@ -159,7 +145,7 @@ body {
     width: 100%;
   }
   
-  .app-main.collapsed {
+  .sidebar.collapsed ~ .app-main {
     margin-left: 60px !important;
   }
 }
