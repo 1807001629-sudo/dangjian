@@ -133,7 +133,7 @@
                   {{ selectedMember.processStage || '未开始' }}
                 </div>
                 <div class="total-hours">
-                  总活动时数: <strong>{{ totalHours }}h</strong>
+                  总活动时数: <strong>{{ selectedMember.活动时数 || 0 }}h</strong>
                 </div>
               </div>
             </div>
@@ -176,10 +176,6 @@
                 <div class="info-row">
                   <span class="label">修正党时:</span>
                   <span class="value">{{ selectedMember.修正党时 || 0 }} 小时</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">总时数:</span>
-                  <span class="value">{{ totalHours }} 小时</span>
                 </div>
               </div>
               
@@ -247,7 +243,6 @@
   </div>
 </template>
 
-<!-- src/views/Process.vue -->
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import StatCard from '@/components/ui/StatCard.vue'
@@ -377,7 +372,6 @@ const uniqueClasses = computed(() => {
   return Array.from(classes).sort()
 })
 
-
 const filteredMembers = computed(() => {
   if (Object.keys(activeFilters.value).length === 0) {
     return members.value
@@ -505,13 +499,6 @@ const averageHours = computed(() => {
   return total / members.value.length
 })
 
-const totalHours = computed(() => {
-  if (!selectedMember.value) return 0
-  const activity = selectedMember.value.活动时数 || 0
-  const correction = selectedMember.value.修正党时 || 0
-  return activity + correction
-})
-
 const stats = computed(() => ({
   total: members.value.length,
   byStage: stageCounts.value,
@@ -585,6 +572,7 @@ function closeStageModal() {
 </script>
 
 <style scoped>
+/* 样式保持不变 */
 .process-page {
   min-height: 100vh;
   background: #f5f5f5;
