@@ -51,7 +51,6 @@ const route = useRoute()
 const collapsed = ref(false)
 
 const menuItems = [
-  { name: '数据看板', path: '/', icon: '📊' },
   { name: '人员管理', path: '/members', icon: '👥' },
   { name: '流程跟踪', path: '/process', icon: '📈' },
   { name: '活动管理', path: '/activities', icon: '🎯' }

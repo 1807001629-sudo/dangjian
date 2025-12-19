@@ -1,4 +1,3 @@
-<!-- src/components/modals/MemberDetailModal.vue -->
 <template>
   <div class="modal-overlay" @click.self="closeModal">
     <div class="member-detail-modal">
@@ -8,69 +7,184 @@
       </div>
       
       <div class="modal-content">
-        <div class="member-summary">
-          <div class="summary-header">
-            <div class="avatar" :style="{ background: getAvatarColor(member.姓名) }">
-              {{ getInitials(member.姓名) }}
-            </div>
-            <div class="header-info">
-              <h4>{{ member.姓名 }}</h4>
-              <div class="meta-info">
-                <span class="meta-item">{{ member.班级 }}</span>
-                <span class="meta-item">学号: {{ member.学号 }}</span>
+        <!-- 基本信息 -->
+        <div class="section">
+          <h5 class="section-title">
+            <span class="title-icon">👤</span>
+            基本信息
+          </h5>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">姓名：</span>
+              <div class="info-value">
+                <div class="avatar-small" :style="{ background: getAvatarColor(member.姓名) }">
+                  {{ getInitials(member.姓名) }}
+                </div>
+                <span>{{ member.姓名 }}</span>
               </div>
             </div>
-          </div>
-          
-          <div class="summary-stats">
-            <div class="stat-card">
-              <div class="stat-value">{{ member.活动时数 || 0 }}</div>
-              <div class="stat-label">活动时数</div>
+            <div class="info-item">
+              <span class="info-label">学号：</span>
+              <span class="info-value">{{ member.学号 }}</span>
             </div>
-            <div class="stat-card">
-              <div class="stat-value" :class="getCorrectionClass(member.修正党时)">
-                {{ member.修正党时 || 0 }}
+            <div class="info-item">
+              <span class="info-label">班级：</span>
+              <span class="info-value">{{ member.班级 }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">政治面貌：</span>
+              <div class="info-value">
+                <span class="status-tag compact" :class="getPoliticalStatusClass(member.政治面貌)">
+                  {{ member.政治面貌 }}
+                </span>
               </div>
-              <div class="stat-label">修正党时</div>
             </div>
-            <div class="stat-card">
-              <div class="stat-value">{{ getTotalHours(member) }}</div>
-              <div class="stat-label">总时数</div>
+            <div class="info-item">
+              <span class="info-label">入党阶段：</span>
+              <div class="info-value">
+                <span class="status-tag compact" :class="getProcessStageClass(member)">
+                  {{ getProcessStageText(member) }}
+                </span>
+              </div>
+            </div>
+            <div class="info-item">
+              <span class="info-label">出生日期：</span>
+              <span class="info-value">{{ formatDate(member.出生年月日) }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">入校时间：</span>
+              <span class="info-value">{{ formatDate(member.入校时间) }}</span>
             </div>
           </div>
         </div>
         
-        <div class="detail-sections">
-          <div class="section">
-            <h5 class="section-title">基本信息</h5>
-            <div class="info-grid">
-              <div class="info-item">
-                <span class="info-label">政治面貌</span>
-                <span class="info-value">{{ member.政治面貌 }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">入党阶段</span>
-                <span class="info-value">{{ member.processStage || '未开始' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">申请入党时间</span>
-                <span class="info-value">{{ member.申请入党时间 || '未申请' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">600题成绩</span>
-                <span class="info-value">{{ member['600题考试成绩'] || '未参加' }}</span>
-              </div>
+        <!-- 入党流程信息 -->
+        <div class="section">
+          <h5 class="section-title">
+            <span class="title-icon">📋</span>
+            入党流程信息
+          </h5>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">申请入党时间：</span>
+              <span class="info-value">{{ formatDate(member.申请入党时间) }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">党支部接收入党积极分子时间：</span>
+              <span class="info-value">{{ formatDate(member['党支部接收入党积极分子时间']) }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">确定为发展对象日期：</span>
+              <span class="info-value">{{ formatDate(member.确定为发展对象日期) }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">支部大会：</span>
+              <span class="info-value">{{ formatDate(member.支部大会) }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">转正时间：</span>
+              <span class="info-value">{{ formatDate(member.转正时间) }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">申请时年龄：</span>
+              <span class="info-value">{{ member['递交入党申请书年龄（岁）'] || '-' }} 岁</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">活动时数：</span>
+              <span class="info-value">{{ member.活动时数 || 0 }} 小时</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">修正党时：</span>
+              <span class="info-value">{{ member.修正党时 || 0 }} 小时</span>
             </div>
           </div>
-          
-          <div class="section">
-            <h5 class="section-title">状态说明</h5>
-            <div class="status-box" :class="getStatusClass(member)">
-              <div class="status-title">{{ getStatusText(member) }}</div>
-              <div class="status-desc">
-                {{ getStatusDescription(member) }}
+        </div>
+        
+        <!-- 学习考试信息 -->
+        <div class="section">
+          <h5 class="section-title">
+            <span class="title-icon">📚</span>
+            学习考试信息
+          </h5>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">600题考试成绩：</span>
+              <div class="info-value">
+                <span v-if="shouldShow600Pass(member)" class="score-pass compact">通过</span>
+                <span v-else>{{ member['600题考试成绩'] || '-' }}</span>
               </div>
             </div>
+            <div class="info-item">
+              <span class="info-label">600题考试时间：</span>
+              <span class="info-value">{{ formatDate(member['600题考试时间']) }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">积极分子结业成绩：</span>
+              <span class="info-value">{{ member.积极分子结业成绩 || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">四级成绩：</span>
+              <span class="info-value">{{ member.四级成绩 || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">计算机二级：</span>
+              <span class="info-value">{{ member.计算机二级 || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">不及格情况：</span>
+              <span class="info-value">{{ member.不及格情况 || '无' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">前一学年综测百分比：</span>
+              <span class="info-value">{{ member.前一学年综测百分比 || '-' }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 团员信息（如果是共青团员） -->
+        <div class="section" v-if="member.政治面貌 === '共青团员'">
+          <h5 class="section-title">
+            <span class="title-icon">👥</span>
+            团员信息
+          </h5>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">入团时间：</span>
+              <span class="info-value">{{ formatDate(member.入团时间) }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">团员资料备注：</span>
+              <span class="info-value">{{ member.团员资料备注 || '-' }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 备注信息 -->
+        <div class="section" v-if="member.备注">
+          <h5 class="section-title">
+            <span class="title-icon">📝</span>
+            备注信息
+          </h5>
+          <div class="remark-content">
+            {{ member.备注 }}
+          </div>
+        </div>
+        
+        <!-- 统计信息 -->
+        <div class="summary-stats">
+          <div class="stat-card">
+            <div class="stat-value">{{ member.活动时数 || 0 }}</div>
+            <div class="stat-label">活动时数</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" :class="getCorrectionClass(member.修正党时)">
+              {{ member.修正党时 || 0 }}
+            </div>
+            <div class="stat-label">修正党时</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{{ getTotalHours(member) }}</div>
+            <div class="stat-label">总时数</div>
           </div>
         </div>
       </div>
@@ -94,9 +208,10 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
+// 获取姓名后两个字作为头像
 const getInitials = (name) => {
-  if (!name) return '??'
-  return name.slice(0, 2)
+  if (!name || name.length < 2) return name || '??'
+  return name.slice(-2) // 取最后两个字
 }
 
 const getAvatarColor = (name) => {
@@ -109,9 +224,83 @@ const getAvatarColor = (name) => {
   return colors[index]
 }
 
+// 政治面貌样式
+const getPoliticalStatusClass = (status) => {
+  const classes = {
+    '中共党员': 'status-party',
+    '中共预备党员': 'status-candidate',
+    '共青团员': 'status-youth',
+    '群众': 'status-masses'
+  }
+  return classes[status] || 'status-masses'
+}
+
+// 入党阶段处理逻辑
+const getProcessStageText = (member) => {
+  // 如果政治面貌是中共预备党员或中共党员，直接显示政治面貌
+  if (member.政治面貌 === '中共预备党员' || member.政治面貌 === '中共党员') {
+    return member.政治面貌
+  }
+  // 否则显示入党流程阶段
+  return member.入党流程阶段 || '未开始'
+}
+
+const getProcessStageClass = (member) => {
+  // 如果政治面貌是中共预备党员或中共党员，使用政治面貌样式
+  if (member.政治面貌 === '中共党员') {
+    return 'stage-party'
+  }
+  if (member.政治面貌 === '中共预备党员') {
+    return 'stage-candidate'
+  }
+  
+  // 否则根据入党流程阶段显示样式
+  const stage = member.入党流程阶段
+  const classes = {
+    '入党申请人': 'stage-applicant',
+    '通过600题': 'stage-passed600',
+    '入党积极分子': 'stage-activist',
+    '积极分子培训结业': 'stage-graduate',
+    '未开始': 'stage-none'
+  }
+  return classes[stage] || 'stage-none'
+}
+
+// 判断是否应该显示600题"通过"
+const shouldShow600Pass = (member) => {
+  const advancedStages = ['入党积极分子', '积极分子培训结业', '中共预备党员', '中共党员']
+  
+  // 如果政治面貌是中共预备党员或中共党员，直接显示"通过"
+  if (member.政治面貌 === '中共预备党员' || member.政治面貌 === '中共党员') {
+    return true
+  }
+  
+  // 或者入党流程阶段是积极分子及以上
+  return advancedStages.includes(member.入党流程阶段)
+}
+
+// 格式化日期
+const formatDate = (date) => {
+  if (!date || date === 'nan' || date === '') return '-'
+  try {
+    // 尝试解析日期格式
+    const dateObj = new Date(date)
+    if (isNaN(dateObj.getTime())) return date // 如果不是有效日期，返回原字符串
+    
+    return dateObj.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    })
+  } catch {
+    return date
+  }
+}
+
+// 计算总时数
 const getTotalHours = (member) => {
-  const activity = member.活动时数 || 0
-  const correction = member.修正党时 || 0
+  const activity = parseFloat(member.活动时数) || 0
+  const correction = parseFloat(member.修正党时) || 0
   return (activity + correction).toFixed(1)
 }
 
@@ -121,33 +310,6 @@ const getCorrectionClass = (correction) => {
   if (value > -50) return 'warning'
   if (value > -100) return 'serious'
   return 'critical'
-}
-
-const getStatusClass = (member) => {
-  const correction = member.修正党时 || 0
-  if (correction >= 0) return 'status-completed'
-  if (correction > -50) return 'status-warning'
-  if (correction > -100) return 'status-serious'
-  return 'status-critical'
-}
-
-const getStatusText = (member) => {
-  const correction = member.修正党时 || 0
-  if (correction >= 0) return '活动时数达标'
-  if (correction > -50) return '需补充活动时数'
-  if (correction > -100) return '活动时数不足'
-  return '严重缺乏活动时数'
-}
-
-const getStatusDescription = (member) => {
-  const correction = member.修正党时 || 0
-  const need = Math.abs(correction)
-  
-  if (correction >= 0) {
-    return '该成员的活动时数已达到要求，无需补充。'
-  } else {
-    return `需要补充 ${need} 小时活动时数以达到要求。建议参加更多的党组织活动和志愿服务。`
-  }
 }
 
 const closeModal = () => {
@@ -174,12 +336,23 @@ const closeModal = () => {
   background: white;
   border-radius: 12px;
   width: 90%;
-  max-width: 500px;
+  max-width: 800px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   animation: modalAppear 0.3s ease;
+}
+
+@keyframes modalAppear {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .modal-header {
@@ -224,69 +397,228 @@ const closeModal = () => {
   padding: 24px;
 }
 
-.member-summary {
+.section {
   margin-bottom: 24px;
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 20px;
+  border: 1px solid #f0f0f0;
 }
 
-.summary-header {
+.section-title {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 8px;
 }
 
-.avatar {
-  width: 60px;
-  height: 60px;
+.title-icon {
+  font-size: 18px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+}
+
+.info-label {
+  min-width: 160px;
+  color: #595959;
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 36px;
+  flex-shrink: 0;
+}
+
+.info-value {
+  color: #262626;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 36px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar-small {
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  font-size: 20px;
+  font-size: 12px;
   flex-shrink: 0;
 }
 
-.header-info h4 {
-  margin: 0 0 8px 0;
-  font-size: 20px;
+/* 状态标签样式 - 修改为紧凑版本 */
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+  min-width: auto;
+  max-width: 100px;
+  height: 24px;
+  line-height: 1;
+  margin: 0;
+}
+
+/* 紧凑版本 */
+.status-tag.compact {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 10px;
+  height: 22px;
+  min-width: 60px;
+}
+
+.status-party {
+  background: rgba(199, 0, 10, 0.1);
+  color: #c7000a;
+  border: 1px solid rgba(199, 0, 10, 0.2);
+}
+
+.status-candidate {
+  background: rgba(250, 140, 22, 0.1);
+  color: #fa8c16;
+  border: 1px solid rgba(250, 140, 22, 0.2);
+}
+
+.status-youth {
+  background: rgba(82, 196, 26, 0.1);
+  color: #52c41a;
+  border: 1px solid rgba(82, 196, 26, 0.2);
+}
+
+.status-masses {
+  background: rgba(24, 144, 255, 0.1);
+  color: #1890ff;
+  border: 1px solid rgba(24, 144, 255, 0.2);
+}
+
+/* 入党阶段标签样式 */
+.stage-party {
+  background: rgba(114, 46, 209, 0.1);
+  color: #722ed1;
+  border: 1px solid rgba(114, 46, 209, 0.2);
+}
+
+.stage-candidate {
+  background: rgba(250, 140, 22, 0.1);
+  color: #fa8c16;
+  border: 1px solid rgba(250, 140, 22, 0.2);
+}
+
+.stage-applicant {
+  background: rgba(24, 144, 255, 0.1);
+  color: #1890ff;
+  border: 1px solid rgba(24, 144, 255, 0.2);
+}
+
+.stage-passed600 {
+  background: rgba(82, 196, 26, 0.1);
+  color: #52c41a;
+  border: 1px solid rgba(82, 196, 26, 0.2);
+}
+
+.stage-activist {
+  background: rgba(250, 173, 20, 0.1);
+  color: #faad14;
+  border: 1px solid rgba(250, 173, 20, 0.2);
+}
+
+.stage-graduate {
+  background: rgba(82, 196, 26, 0.1);
+  color: #52c41a;
+  border: 1px solid rgba(82, 196, 26, 0.2);
+}
+
+.stage-none {
+  background: rgba(191, 191, 191, 0.1);
+  color: #bfbfbf;
+  border: 1px solid rgba(191, 191, 191, 0.2);
+}
+
+/* 600题通过样式 */
+.score-pass {
+  color: #52c41a;
   font-weight: 600;
-  color: #262626;
+  background: rgba(82, 196, 26, 0.1);
+  padding: 3px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(82, 196, 26, 0.2);
+  font-size: 11px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.meta-info {
-  display: flex;
-  gap: 16px;
-  font-size: 14px;
+.score-pass.compact {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 10px;
+  height: 22px;
+}
+
+/* 备注信息样式 */
+.remark-content {
   color: #595959;
+  line-height: 1.6;
+  padding: 12px;
+  font-size: 14px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #f0f0f0;
 }
 
-.meta-item {
-  background: #f5f5f5;
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-
+/* 统计卡片 */
 .summary-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 16px;
+  margin-top: 24px;
 }
 
 .stat-card {
-  background: #fafafa;
+  background: white;
   border-radius: 8px;
-  padding: 16px;
+  padding: 20px;
   text-align: center;
   border: 1px solid #f0f0f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .stat-value {
   font-size: 24px;
   font-weight: 700;
   color: #262626;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
 .stat-value.positive {
@@ -306,102 +638,9 @@ const closeModal = () => {
 }
 
 .stat-label {
-  font-size: 12px;
-  color: #8c8c8c;
-}
-
-.detail-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.section-title {
-  margin: 0 0 12px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #262626;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.info-item {
-  background: #fafafa;
-  border-radius: 6px;
-  padding: 12px;
-  border: 1px solid #f0f0f0;
-}
-
-.info-label {
-  display: block;
-  font-size: 12px;
-  color: #8c8c8c;
-  margin-bottom: 4px;
-}
-
-.info-value {
-  display: block;
-  font-size: 14px;
-  font-weight: 500;
-  color: #262626;
-}
-
-.status-box {
-  padding: 16px;
-  border-radius: 8px;
-  border: 1px solid #f0f0f0;
-}
-
-.status-completed {
-  background: rgba(82, 196, 26, 0.05);
-  border-color: rgba(82, 196, 26, 0.2);
-}
-
-.status-warning {
-  background: rgba(250, 173, 20, 0.05);
-  border-color: rgba(250, 173, 20, 0.2);
-}
-
-.status-serious {
-  background: rgba(255, 122, 69, 0.05);
-  border-color: rgba(255, 122, 69, 0.2);
-}
-
-.status-critical {
-  background: rgba(245, 34, 45, 0.05);
-  border-color: rgba(245, 34, 45, 0.2);
-}
-
-.status-title {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.status-completed .status-title {
-  color: #52c41a;
-}
-
-.status-warning .status-title {
-  color: #faad14;
-}
-
-.status-serious .status-title {
-  color: #ff7a45;
-}
-
-.status-critical .status-title {
-  color: #f5222d;
-}
-
-.status-desc {
   font-size: 13px;
-  color: #595959;
-  line-height: 1.5;
+  color: #8c8c8c;
+  font-weight: 500;
 }
 
 .modal-footer {
@@ -430,18 +669,50 @@ const closeModal = () => {
   transform: translateY(-1px);
 }
 
+/* 响应式设计 */
 @media (max-width: 768px) {
   .member-detail-modal {
     width: 95%;
     max-height: 95vh;
   }
   
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+  
   .summary-stats {
     grid-template-columns: 1fr;
   }
   
-  .info-grid {
-    grid-template-columns: 1fr;
+  .info-label {
+    min-width: 120px;
+  }
+}
+
+@media (max-width: 480px) {
+  .info-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    min-height: auto;
+  }
+  
+  .info-label {
+    min-width: auto;
+    line-height: 1.5;
+    width: 100%;
+  }
+  
+  .info-value {
+    line-height: 1.5;
+    width: 100%;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+  }
+  
+  .status-tag.compact {
+    margin-left: 0;
   }
 }
 </style>

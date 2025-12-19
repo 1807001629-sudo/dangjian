@@ -1,8 +1,10 @@
 {
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/auto-excel-to-json.js",
+    "dev:original": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "excel-to-json": "node scripts/convert-excel.js"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
