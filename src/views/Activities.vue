@@ -75,8 +75,12 @@
                   <span class="legend-text">中共党员</span>
                 </div>
                 <div class="legend-item">
-                  <span class="legend-color" style="background-color: #52c41a;"></span>
+                  <span class="legend-color" style="background-color: #13c2c2;"></span>
                   <span class="legend-text">已完成</span>
+                </div>
+                <div class="legend-item">
+                  <span class="legend-color" style="background-color: #bfbfbf;"></span>
+                  <span class="legend-text">未开始</span>
                 </div>
                 <div class="legend-item">
                   <span class="legend-color" style="background-color: #faad14;"></span>
@@ -159,7 +163,7 @@
                   <div class="correction-cell" :class="getCorrectionClass(member)">
                     <span class="correction-value">{{ member.修正党时 || 0 }}</span>
                     <span class="correction-unit">h</span>
-                    <div class="correction-bar" v-if="!member.isPartyMember && member.修正党时 < 0">
+                    <div class="correction-bar" v-if="!member.isPartyMember && member.修正党时 < 0 && !shouldShowNotStarted(member)">
                       <div 
                         class="bar-fill"
                         :style="{ width: getCorrectionPercentage(member) + '%' }"
@@ -190,8 +194,8 @@
                       class="btn-action" 
                       @click="editCorrection(member)" 
                       title="修正时数"
-                      :disabled="member.isPartyMember"
-                      :class="{ 'disabled': member.isPartyMember }"
+                      :disabled="member.isPartyMember || shouldShowNotStarted(member)"
+                      :class="{ 'disabled': member.isPartyMember || shouldShowNotStarted(member) }"
                     >
                       <span class="action-icon">✏️</span>
                     </button>
@@ -337,6 +341,18 @@ function calculateProcessStage(member) {
   return '未开始'
 }
 
+// 新增方法：判断是否需要显示未开始状态
+function shouldShowNotStarted(member) {
+  const stage = member.processStage || member.入党流程阶段 || ''
+  const isPassed600Questions = member['600题考试成绩'] && parseFloat(member['600题考试成绩']) >= 60
+  
+  // 条件：入党阶段为"未开始"、"入党申请人"或"通过600题"的
+  return stage === '未开始' || 
+         stage === '入党申请人' || 
+         isPassed600Questions ||
+         member.入党流程阶段 === '通过600题'
+}
+
 // 计算属性
 const uniqueClasses = computed(() => {
   const classes = new Set()
@@ -376,12 +392,18 @@ const filteredMembers = computed(() => {
         return activeFilters.value.correctionStatus === 'completed'
       }
       
+      // 如果成员应该显示"未开始"状态，则根据筛选条件判断
+      if (shouldShowNotStarted(member)) {
+        return activeFilters.value.correctionStatus === 'not-started'
+      }
+      
       const correction = member.修正党时 || 0
       switch (activeFilters.value.correctionStatus) {
         case 'need': return correction < 0 && correction > -50
         case 'serious': return correction <= -50 && correction > -100
         case 'critical': return correction <= -100
         case 'completed': return correction >= 0
+        case 'not-started': return false // 这里不会执行到，因为上面已经处理了
         default: return true
       }
     })
@@ -434,6 +456,8 @@ const needCorrectionCount = computed(() => {
   return members.value.filter(member => {
     // 中共党员不计入需修正人数
     if (member.isPartyMember) return false
+    // "未开始"状态不计入需修正人数
+    if (shouldShowNotStarted(member)) return false
     const correction = member.修正党时 || 0
     return correction < 0 && correction > -50
   }).length
@@ -443,6 +467,8 @@ const seriousLackCount = computed(() => {
   return members.value.filter(member => {
     // 中共党员不计入缺时人数
     if (member.isPartyMember) return false
+    // "未开始"状态不计入缺时人数
+    if (shouldShowNotStarted(member)) return false
     const correction = member.修正党时 || 0
     return correction <= -50 && correction > -100
   }).length
@@ -452,6 +478,8 @@ const completedCorrectionCount = computed(() => {
   return members.value.filter(member => {
     // 中共党员自动计入已完成
     if (member.isPartyMember) return true
+    // "未开始"状态不计入已完成
+    if (shouldShowNotStarted(member)) return false
     const correction = member.修正党时 || 0
     return correction >= 0
   }).length
@@ -532,6 +560,9 @@ function getCorrectionClass(member) {
   // 中共党员直接显示中共党员样式
   if (member.isPartyMember) return 'party-member'
   
+  // "未开始"状态显示灰色
+  if (shouldShowNotStarted(member)) return 'not-started'
+  
   const value = member.修正党时 || 0
   if (value >= 0) return 'completed'
   if (value > -50) return 'need'
@@ -540,8 +571,8 @@ function getCorrectionClass(member) {
 }
 
 function getCorrectionPercentage(member) {
-  // 中共党员不需要显示进度条
-  if (member.isPartyMember) return 0
+  // 中共党员和未开始状态不需要显示进度条
+  if (member.isPartyMember || shouldShowNotStarted(member)) return 0
   
   const value = Math.abs(member.修正党时 || 0)
   // 最大显示为-100，超过100按100算
@@ -551,6 +582,11 @@ function getCorrectionPercentage(member) {
 function getStatusClass(member) {
   // 中共党员直接显示中共党员样式
   if (member.isPartyMember) return 'party-member'
+  
+  // 检查是否需要显示未开始状态
+  if (shouldShowNotStarted(member)) {
+    return 'not-started'
+  }
   
   const correction = member.修正党时 || 0
   if (correction >= 0) return 'completed'
@@ -563,6 +599,11 @@ function getStatusText(member) {
   // 中共党员直接显示中共党员
   if (member.isPartyMember) return '中共党员'
   
+  // 检查是否需要显示未开始状态
+  if (shouldShowNotStarted(member)) {
+    return '未开始'
+  }
+  
   const correction = member.修正党时 || 0
   if (correction >= 0) return '已完成'
   if (correction > -50) return '需修正'
@@ -573,6 +614,9 @@ function getStatusText(member) {
 function getRowClass(member) {
   // 中共党员显示特殊行样式
   if (member.isPartyMember) return 'row-party-member'
+  
+  // 未开始状态显示灰色背景
+  if (shouldShowNotStarted(member)) return 'row-not-started'
   
   const correction = member.修正党时 || 0
   if (correction < -100) return 'row-critical'
@@ -602,7 +646,8 @@ function getStageColor(stage) {
     '入党积极分子': '#faad14',
     '中共预备党员': '#f5222d',
     '中共党员': '#722ed1',
-    '未开始': '#bfbfbf'
+    '未开始': '#bfbfbf',
+    '通过600题': '#1890ff'
   }
   return colors[stage] || '#bfbfbf'
 }
@@ -613,9 +658,13 @@ function viewMemberDetail(member) {
 }
 
 function editCorrection(member) {
-  // 中共党员不允许修改修正党时
+  // 中共党员和未开始状态不允许修改修正党时
   if (member.isPartyMember) {
     alert('中共党员无需修正党时')
+    return
+  }
+  if (shouldShowNotStarted(member)) {
+    alert('未开始入党流程的成员无需修正党时')
     return
   }
   selectedMember.value = member
@@ -841,6 +890,14 @@ function exportData() {
   background: #f2e6ff !important;
 }
 
+.activities-table tbody tr.row-not-started {
+  background: #fafafa !important;
+}
+
+.activities-table tbody tr.row-not-started:hover {
+  background: #f0f0f0 !important;
+}
+
 .activities-table tbody tr.row-warning:hover {
   background: #fff7e6 !important;
 }
@@ -958,6 +1015,12 @@ function exportData() {
   border: 1px solid rgba(114, 46, 209, 0.2);
 }
 
+/* 未开始样式 */
+.correction-cell.not-started {
+  background: #f5f5f5;
+  border: 1px solid #d9d9d9;
+}
+
 .correction-cell.need {
   background: #fffbe6;
   border: 1px solid #ffe58f;
@@ -986,6 +1049,10 @@ function exportData() {
 
 .correction-cell.party-member .correction-value {
   color: #722ed1;
+}
+
+.correction-cell.not-started .correction-value {
+  color: #8c8c8c;
 }
 
 .correction-cell.need .correction-value {
@@ -1076,6 +1143,12 @@ function exportData() {
   background: rgba(114, 46, 209, 0.1);
   color: #722ed1;
   border: 1px solid rgba(114, 46, 209, 0.2);
+}
+
+.status-badge.not-started {
+  background: #f5f5f5;
+  color: #8c8c8c;
+  border: 1px solid #d9d9d9;
 }
 
 .status-badge.completed {
