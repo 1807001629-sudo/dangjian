@@ -26,12 +26,6 @@ const routes = [
     meta: { title: '流程跟踪' }
   },
   {
-    path: '/analytics',
-    name: 'Analytics',
-    component: () => import('@/views/Analytics.vue'),
-    meta: { title: '数据分析' }
-  },
-  {
     path: '/:pathMatch(.*)*',
     redirect: '/members'  // 404重定向到成员管理
   }
