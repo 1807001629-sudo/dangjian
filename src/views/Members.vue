@@ -1,3 +1,4 @@
+<!-- src/views/Members.vue - 完整API版本 -->
 <template>
   <div class="members-page">
     <!-- 页面头部 -->
@@ -142,13 +143,24 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-if="filteredMembers.length === 0">
+            <!-- 加载状态 -->
+            <tr v-if="loading">
+              <td colspan="14" class="loading-row">
+                <div class="loading-spinner"></div>
+                <span>加载中...</span>
+              </td>
+            </tr>
+            
+            <!-- 空状态 -->
+            <tr v-else-if="filteredMembers.length === 0">
               <td colspan="14" class="empty-table">
                 <div class="empty-icon">📭</div>
                 <p>暂无符合条件的成员数据</p>
               </td>
             </tr>
-            <tr v-else v-for="(member, index) in sortedMembers" :key="member.id">
+            
+            <!-- 数据行 -->
+            <tr v-else v-for="(member, index) in sortedMembers" :key="member.学号">
               <td class="center">{{ (currentPage - 1) * pageSize + index + 1 }}</td>
               <td>
                 <div class="member-name">
@@ -230,7 +242,7 @@
       </div>
       
       <!-- 分页 -->
-      <div class="pagination" v-if="filteredMembers.length > pageSize">
+      <div class="pagination" v-if="!loading && filteredMembers.length > pageSize">
         <button 
           class="page-btn" 
           :disabled="currentPage === 1"
@@ -560,18 +572,14 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import * as XLSX from 'xlsx'
 import MemberDetailModal from '@/components/modals/MemberDetailModal.vue'
-import membersData from '@/assets/data.json'
-import { 
-  parseExcelData, 
-  oneClickActivistQuery, 
-  getDaysSinceActivist,
-  formatDisplayDate 
-} from '@/utils/dataParser.js'
+import { useDataStore } from '@/stores/dataStore'
+import { formatDate, formatDisplayDate } from '@/utils/dateFormatter'
 
 // 响应式数据
+const dataStore = useDataStore()
 const members = ref([])
+const loading = ref(false)
 const searchText = ref('')
 const selectedClass = ref('')
 const selectedStatus = ref('')
@@ -757,28 +765,55 @@ const sortedQualifiedMembers = computed(() => {
 })
 
 // 初始化数据
-onMounted(() => {
-  console.log('Members.vue 加载')
+onMounted(async () => {
+  console.log('Members.vue 加载，从API获取数据')
+  await loadMembersData()
   
+  // 设置当前日期
+  const now = new Date()
+  currentDate.value = now.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+})
+
+// 加载成员数据
+const loadMembersData = async () => {
+  loading.value = true
   try {
-    // 解析数据
-    const parsedData = parseExcelData(membersData)
-    members.value = parsedData.members
-    console.log('加载了', members.value.length, '条成员数据')
-    
-    // 设置当前日期
-    const now = new Date()
-    currentDate.value = now.toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+    await dataStore.fetchMembers()
+    // 格式化数据
+    members.value = dataStore.members.map((member, index) => {
+      const formattedMember = {
+        ...member,
+        id: member.学号 || index,
+        // 格式化日期字段
+        入团时间: formatDate(member.入团时间),
+        出生年月日: formatDate(member.出生年月日),
+        入校时间: formatDate(member.入校时间),
+        申请入党时间: formatDate(member.申请入党时间),
+        '600题考试时间': formatDate(member['600题考试时间']),
+        '党支部接收入党积极分子时间': formatDate(member['党支部接收入党积极分子时间']),
+        // 确保数字字段都是数字类型
+        活动时数: parseFloat(member.活动时数) || 0,
+        修正党时: parseFloat(member.修正党时) || 0,
+        '600题考试成绩': parseFloat(member['600题考试成绩']) || 0,
+        积极分子结业成绩: parseFloat(member.积极分子结业成绩) || 0,
+        四级成绩: parseFloat(member.四级成绩) || 0,
+        计算机二级: parseFloat(member.计算机二级) || 0
+      }
+      
+      return formattedMember
     })
-    
+    console.log('加载了', members.value.length, '条成员数据')
   } catch (error) {
     console.error('数据加载失败:', error)
     members.value = []
+  } finally {
+    loading.value = false
   }
-})
+}
 
 // 监听严格模式变化
 const handleStrictModeChange = () => {
@@ -811,7 +846,7 @@ watch(() => [
 // 工具函数
 const getInitials = (name) => {
   if (!name || name.length < 2) return name || '??'
-  return name.slice(-2)  // 修改：使用名字后两个字
+  return name.slice(-2)  // 使用名字后两个字
 }
 
 const getAvatarColor = (name) => {
@@ -927,6 +962,22 @@ const getPercentageClass = (percentage, className) => {
   return 'percentage-fail'
 }
 
+const getDaysSinceActivist = (member) => {
+  const activistDate = member['党支部接收入党积极分子时间']
+  if (!activistDate) return 0
+  
+  try {
+    const date = new Date(activistDate)
+    const today = new Date()
+    const diffTime = Math.abs(today - date)
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays
+  } catch (error) {
+    console.error('计算天数错误:', error)
+    return 0
+  }
+}
+
 const getDaysClass = (days) => {
   if (days >= 365) return 'days-enough'
   return 'days-not-enough'
@@ -959,12 +1010,12 @@ const toggleSort = (field) => {
   currentPage.value = 1
 }
 
-const refreshData = () => {
-  window.location.reload()
+const refreshData = async () => {
+  await loadMembersData()
 }
 
 const exportData = () => {
-  exportToExcel(members.value, '全体成员数据')
+  exportToJSON(members.value, '全体成员数据')
 }
 
 const viewMemberDetail = (member) => {
@@ -1037,21 +1088,81 @@ const performActivistQuery = () => {
     }
     
     // 如果有额外的筛选条件，进行进一步筛选
-    if (enabledCriteriaCount.value > 0) {
-      const result = oneClickActivistQuery(prerequisiteMembers, queryOptions.value)
-      qualifiedMembers.value = result.符合条件成员
-      
-      console.log('进一步筛选完成:', result.统计信息)
-      
-      if (qualifiedMembers.value.length === 0) {
-        queryMessage.value = `找到${prerequisiteMembers.length}位政治面貌为共青团员且培训结业的积极分子，但根据当前条件未找到符合进一步筛选条件的成员`
-      } else {
-        queryMessage.value = `从${prerequisiteMembers.length}位政治面貌为共青团员且培训结业的积极分子中，根据${enabledCriteriaCount.value}个条件找到${qualifiedMembers.value.length}位符合条件的成员`
-      }
+    let filteredMembers = [...prerequisiteMembers]
+    
+    if (queryOptions.value.checkFullYear) {
+      filteredMembers = filteredMembers.filter(member => {
+        const days = getDaysSinceActivist(member)
+        return days >= 365
+      })
+    }
+    
+    if (queryOptions.value.checkCET4) {
+      filteredMembers = filteredMembers.filter(member => {
+        const score = parseFloat(member.四级成绩) || 0
+        return score >= 425
+      })
+    }
+    
+    if (queryOptions.value.checkComputer) {
+      filteredMembers = filteredMembers.filter(member => {
+        const className = member.班级 || ''
+        const score = parseFloat(member.计算机二级) || 0
+        
+        // 大数据专业不要求计算机二级
+        if (className.includes('大数据')) {
+          return true
+        }
+        
+        // 其他专业需要60分以上
+        return score >= 60
+      })
+    }
+    
+    if (queryOptions.value.checkFailures) {
+      filteredMembers = filteredMembers.filter(member => {
+        const failure = member.不及格情况 || ''
+        return failure === '无' || failure === ''
+      })
+    }
+    
+    if (queryOptions.value.checkComprehensive) {
+      filteredMembers = filteredMembers.filter(member => {
+        const percentage = member.前一学年综测百分比
+        const className = member.班级 || ''
+        
+        if (!percentage) return false
+        
+        const percentNum = parseFloat(percentage.replace('%', ''))
+        let gradeLevel = 0
+        
+        if (className && (className.includes('大二') || /22/.test(className))) {
+          gradeLevel = 2
+        } else if (className && (className.includes('大三') || /21/.test(className))) {
+          gradeLevel = 3
+        } else if (className && (className.includes('大四') || /20/.test(className))) {
+          gradeLevel = 4
+        }
+        
+        let maxPercent = 100
+        switch(gradeLevel) {
+          case 2: maxPercent = 40; break
+          case 3: maxPercent = 50; break
+          case 4: maxPercent = 60; break
+        }
+        
+        return percentNum <= maxPercent
+      })
+    }
+    
+    qualifiedMembers.value = filteredMembers
+    
+    console.log('进一步筛选完成:', qualifiedMembers.value.length, '位符合条件')
+    
+    if (qualifiedMembers.value.length === 0) {
+      queryMessage.value = `找到${prerequisiteMembers.length}位政治面貌为共青团员且培训结业的积极分子，但根据当前条件未找到符合进一步筛选条件的成员`
     } else {
-      // 没有额外的筛选条件，只显示基本前提条件的结果
-      qualifiedMembers.value = prerequisiteMembers
-      queryMessage.value = `找到${prerequisiteMembers.length}位政治面貌为共青团员且入党阶段为积极分子培训结业的成员`
+      queryMessage.value = `从${prerequisiteMembers.length}位政治面貌为共青团员且培训结业的积极分子中，根据${enabledCriteriaCount.value}个条件找到${qualifiedMembers.value.length}位符合条件的成员`
     }
     
   } catch (error) {
@@ -1075,113 +1186,11 @@ const exportQualifiedMembers = () => {
     return
   }
   
-  try {
-    const exportData = qualifiedMembers.value.map((member, index) => {
-      const qualification = oneClickActivistQuery([member], queryOptions.value)
-      return {
-        '序号': index + 1,
-        '姓名': member.姓名 || '',
-        '学号': member.学号 || '',
-        '班级': member.班级 || '',
-        '政治面貌': member.政治面貌 || '',
-        '入党阶段': member.入党流程阶段 || '',
-        '600题成绩': format600Score(member['600题考试成绩'], member.入党流程阶段),
-        '四级成绩': member.四级成绩 || '',
-        '计算机二级': member.计算机二级 || '',
-        '不及格情况': member.不及格情况 || '无',
-        '前一学年综测百分比': member.前一学年综测百分比 || '',
-        '积极分子时间': formatDisplayDate(member['党支部接收入党积极分子时间']),
-        '成为积极分子天数': getDaysSinceActivist(member),
-        '是否满一年': getDaysSinceActivist(member) >= 365 ? '是' : '否',
-        '四级是否达标': (member.四级成绩 || 0) >= 425 ? '是' : '否',
-        '计算机二级是否达标': getComputerClass(member.计算机二级, member.班级).includes('pass') || 
-                              getComputerClass(member.计算机二级, member.班级).includes('exempt') ? '是' : '否',
-        '是否有不及格': member.不及格情况 === '无' ? '否' : '是',
-        '综测是否达标': getPercentageClass(member.前一学年综测百分比, member.班级).includes('pass') ? '是' : '否',
-        '查询条件': ['共青团员+培训结业', ...enabledCriteriaList.value].join(', '),
-        '备注': member.备注 || ''
-      }
-    })
-    
-    const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.json_to_sheet(exportData)
-    
-    const wscols = [
-      { wch: 8 },   // 序号
-      { wch: 10 },  // 姓名
-      { wch: 15 },  // 学号
-      { wch: 12 },  // 班级
-      { wch: 10 },  // 政治面貌
-      { wch: 12 },  // 入党阶段
-      { wch: 10 },  // 600题成绩
-      { wch: 10 },  // 四级成绩
-      { wch: 12 },  // 计算机二级
-      { wch: 15 },  // 不及格情况
-      { wch: 15 },  // 综测百分比
-      { wch: 15 },  // 积极分子时间
-      { wch: 12 },  // 成为积极分子天数
-      { wch: 10 },  // 是否满一年
-      { wch: 12 },  // 四级是否达标
-      { wch: 15 },  // 计算机二级是否达标
-      { wch: 12 },  // 是否有不及格
-      { wch: 12 },  // 综测是否达标
-      { wch: 25 },  // 查询条件
-      { wch: 20 }   // 备注
-    ]
-    ws['!cols'] = wscols
-    
-    XLSX.utils.book_append_sheet(wb, ws, '符合条件的积极分子')
-    
-    // 添加条件说明工作表
-    const criteriaData = [
-      ['查询条件说明', ''],
-      ['基本前提条件', ''],
-      ['政治面貌', '共青团员'],
-      ['入党阶段', '积极分子培训结业'],
-      ['', ''],
-      ['启用的筛选条件', ''],
-      ...enabledCriteriaList.value.map(condition => [condition, '✓']),
-      ['', ''],
-      ['查询选项', '值'],
-      ['检查满一年', queryOptions.value.checkFullYear ? '是' : '否'],
-      ['检查四级', queryOptions.value.checkCET4 ? '是' : '否'],
-      ['检查计算机二级', queryOptions.value.checkComputer ? '是' : '否'],
-      ['检查不及格', queryOptions.value.checkFailures ? '是' : '否'],
-      ['检查综测', queryOptions.value.checkComprehensive ? '是' : '否'],
-      ['严格模式', queryOptions.value.strictMode ? '是' : '否'],
-      ['', ''],
-      ['统计信息', ''],
-      ['查询时间', queryTime.value],
-      ['积极分子总数', activistCount.value],
-      ['基本前提条件人数', qualifiedMembers.value.length],
-      ['启用的筛选条件数', enabledCriteriaCount.value]
-    ]
-    
-    const wsCriteria = XLSX.utils.aoa_to_sheet(criteriaData)
-    XLSX.utils.book_append_sheet(wb, wsCriteria, '条件说明')
-    
-    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-    
-    const blob = new Blob([wbout], { type: 'application/octet-stream' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `积极分子查询_${new Date().toISOString().slice(0, 10)}.xlsx`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-    
-    console.log(`已导出${exportData.length}条记录到Excel`)
-    
-  } catch (error) {
-    console.error('导出Excel失败:', error)
-    alert('导出失败，请重试')
-  }
+  exportToJSON(qualifiedMembers.value, '符合条件的积极分子')
 }
 
-// 导出到Excel函数
-const exportToExcel = (data, filename) => {
+// 导出到JSON函数（替代原来的Excel导出）
+const exportToJSON = (data, filename) => {
   try {
     const exportData = data.map((member, index) => {
       return {
@@ -1204,47 +1213,21 @@ const exportToExcel = (data, filename) => {
       }
     })
     
-    const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.json_to_sheet(exportData)
-    
-    const wscols = [
-      { wch: 8 },   // 序号
-      { wch: 10 },  // 姓名
-      { wch: 15 },  // 学号
-      { wch: 12 },  // 班级
-      { wch: 10 },  // 政治面貌
-      { wch: 15 },  // 入党流程阶段
-      { wch: 10 },  // 活动时数
-      { wch: 10 },  // 修正党时
-      { wch: 10 },  // 600题成绩
-      { wch: 10 },  // 四级成绩
-      { wch: 12 },  // 计算机二级
-      { wch: 15 },  // 不及格情况
-      { wch: 15 },  // 综测百分比
-      { wch: 15 },  // 积极分子时间
-      { wch: 15 },  // 申请时间
-      { wch: 20 }   // 备注
-    ]
-    ws['!cols'] = wscols
-    
-    XLSX.utils.book_append_sheet(wb, ws, '成员数据')
-    
-    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-    
-    const blob = new Blob([wbout], { type: 'application/octet-stream' })
-    const url = URL.createObjectURL(blob)
+    const dataStr = JSON.stringify(exportData, null, 2)
+    const dataBlob = new Blob([dataStr], { type: 'application/json' })
+    const url = URL.createObjectURL(dataBlob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `${filename}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    link.download = `${filename}_${new Date().toISOString().slice(0, 10)}.json`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
     
-    console.log(`已导出${exportData.length}条记录到Excel`)
+    console.log(`已导出${exportData.length}条记录到JSON`)
     
   } catch (error) {
-    console.error('导出Excel失败:', error)
+    console.error('导出JSON失败:', error)
     alert('导出失败，请重试')
   }
 }
@@ -1286,6 +1269,29 @@ const exportToExcel = (data, filename) => {
   font-size: 14px;
   color: #595959;
   margin-top: 8px;
+}
+
+/* 加载状态样式 */
+.loading-row {
+  text-align: center;
+  padding: 40px;
+  background: #fafafa;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border: 3px solid #f0f0f0;
+  border-radius: 50%;
+  border-top-color: #c7000a;
+  animation: spin 1s ease-in-out infinite;
+  margin-right: 12px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* 之前的其他样式保持不变 */

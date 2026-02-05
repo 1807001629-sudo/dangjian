@@ -1,4 +1,3 @@
-<!-- src/components/modals/StageDetailModal.vue -->
 <template>
   <div class="modal-overlay" @click.self="closeModal">
     <div class="stage-detail-modal">
@@ -67,19 +66,23 @@
                   <td>{{ member.姓名 || '未知' }}</td>
                   <td>{{ member.学号 || '-' }}</td>
                   <td>{{ member.班级 || '-' }}</td>
-                  <td>{{ member.政治面貌 || '-' }}</td>
-                  <td v-if="stage === '入党申请人'">
-                    <span :class="{
-                      'pass': member['600题考试成绩'] && member['600题考试成绩'] >= 60, 
-                      'fail': member['600题考试成绩'] && member['600题考试成绩'] < 60,
-                      'no-data': !member['600题考试成绩']
-                    }">
-                      {{ member['600题考试成绩'] || '未考' }}
+                  <td>
+                    <span class="status-tag-small" :class="getPoliticalStatusClass(member.政治面貌)">
+                      {{ member.政治面貌 || '-' }}
                     </span>
                   </td>
-                  <td>{{ member.活动时数 || '0' }}h</td>
+                  <td v-if="stage === '入党申请人'">
+                    <span :class="{
+                      'pass': isScorePass(member['600题考试成绩']), 
+                      'fail': isScoreFail(member['600题考试成绩']),
+                      'no-data': !member['600题考试成绩']
+                    }">
+                      {{ formatScore(member['600题考试成绩']) }}
+                    </span>
+                  </td>
+                  <td>{{ formatScore(member.活动时数) }}h</td>
                   <td v-if="showAllDetails">{{ member.联系方式 || '-' }}</td>
-                  <td v-if="showAllDetails">{{ member.申请时间 || '-' }}</td>
+                  <td v-if="showAllDetails">{{ formatDate(member.申请时间) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -109,9 +112,10 @@
       </div>
       
       <div class="modal-footer">
-        <button class="btn-export" @click="exportData">
-          <span class="export-icon">📥</span>
-          导出数据
+        <button class="btn-export" @click="exportData" :disabled="exporting">
+          <span v-if="exporting" class="loading-spinner small"></span>
+          <span v-else class="export-icon">📥</span>
+          {{ exporting ? '导出中...' : '导出CSV' }}
         </button>
         <div class="footer-info">
           共 {{ filteredList.length }} 条记录
@@ -123,6 +127,9 @@
 
 <script setup>
 import { ref, computed, watch, defineProps, defineEmits } from 'vue';
+import { formatScore } from '@/utils/memberUtils';
+import { formatDisplayDate } from '@/utils/dateFormatter';
+import { getPoliticalStatusClass } from '@/services/dataTransformer';
 
 const props = defineProps({
   stage: String,
@@ -136,6 +143,7 @@ const searchText = ref('');
 const showAllDetails = ref(false);
 const currentPage = ref(1);
 const pageSize = 10;
+const exporting = ref(false);
 
 const closeModal = () => {
   emit('close');
@@ -173,7 +181,7 @@ const passRate = computed(() => {
   );
   if (membersWithScore.length === 0) return 0;
   const passed = membersWithScore.filter(member => 
-    member['600题考试成绩'] >= 60
+    isScorePass(member['600题考试成绩'])
   ).length;
   return Math.round((passed / membersWithScore.length) * 100);
 });
@@ -192,19 +200,110 @@ const performSearch = () => {
   currentPage.value = 1; // 搜索时重置到第一页
 };
 
-const exportData = () => {
-  const dataStr = JSON.stringify(filteredList.value, null, 2);
-  const dataBlob = new Blob([dataStr], { type: 'application/json' });
-  const url = URL.createObjectURL(dataBlob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${props.stage}_成员数据_${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+// 检查成绩是否通过
+const isScorePass = (score) => {
+  const num = parseFloat(score);
+  return !isNaN(num) && num >= 60;
+};
+
+// 检查成绩是否失败
+const isScoreFail = (score) => {
+  const num = parseFloat(score);
+  return !isNaN(num) && num < 60;
+};
+
+// 格式化日期
+const formatDate = formatDisplayDate;
+
+// 导出数据为CSV - 不再依赖xlsx
+const exportData = async () => {
+  if (filteredList.value.length === 0) {
+    alert('没有数据可以导出');
+    return;
+  }
   
-  console.log(`已导出${props.stage}的数据，共${filteredList.value.length}条记录`);
+  exporting.value = true;
+  
+  try {
+    // 准备数据
+    const exportData = filteredList.value.map((member, index) => {
+      const data = {
+        '序号': index + 1,
+        '姓名': member.姓名 || '',
+        '学号': member.学号 || '',
+        '班级': member.班级 || '',
+        '政治面貌': member.政治面貌 || '',
+        '入党流程阶段': member.入党流程阶段 || '',
+        '活动时数': formatScore(member.活动时数),
+        '修正党时': formatScore(member.修正党时),
+        '总时数': (parseFloat(member.活动时数) || 0) + (parseFloat(member.修正党时) || 0),
+        '四级成绩': formatScore(member.四级成绩),
+        '计算机二级': formatScore(member.计算机二级),
+        '不及格情况': member.不及格情况 || '无',
+        '前一学年综测百分比': member.前一学年综测百分比 || '',
+        '申请入党时间': formatDate(member.申请入党时间),
+        '出生日期': formatDate(member.出生年月日)
+      };
+      
+      // 根据阶段添加特定字段
+      if (props.stage === '入党申请人') {
+        data['600题考试成绩'] = formatScore(member['600题考试成绩']);
+        data['600题考试时间'] = formatDate(member['600题考试时间']);
+      } else if (props.stage === '入党积极分子') {
+        data['积极分子时间'] = formatDate(member['党支部接收入党积极分子时间']);
+        data['积极分子结业成绩'] = formatScore(member.积极分子结业成绩);
+      } else if (props.stage === '中共预备党员') {
+        data['确定为发展对象日期'] = formatDate(member.确定为发展对象日期);
+        data['支部大会'] = formatDate(member.支部大会);
+      } else if (props.stage === '中共党员') {
+        data['转正时间'] = formatDate(member.转正时间);
+      }
+      
+      // 添加详细信息
+      if (showAllDetails.value) {
+        data['联系方式'] = member.联系方式 || '';
+        data['申请时间'] = formatDate(member.申请时间);
+        data['备注'] = member.备注 || '';
+      }
+      
+      return data;
+    });
+    
+    // 转换为CSV格式
+    const headers = Object.keys(exportData[0]);
+    const csvRows = [];
+    
+    // 添加标题行
+    csvRows.push(headers.join(','));
+    
+    // 添加数据行
+    for (const row of exportData) {
+      const values = headers.map(header => {
+        const escaped = String(row[header]).replace(/"/g, '""');
+        return `"${escaped}"`;
+      });
+      csvRows.push(values.join(','));
+    }
+    
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${props.stage}_成员数据_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    console.log(`已导出${exportData.length}条记录到CSV`);
+    
+  } catch (error) {
+    console.error('导出数据失败:', error);
+    alert('导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
 };
 
 // 当搜索词变化时重置页码
@@ -461,6 +560,35 @@ watch(() => props.members, () => {
   font-style: italic;
 }
 
+.status-tag-small {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.status-tag-small.status-party {
+  background: rgba(199, 0, 10, 0.1);
+  color: #c7000a;
+}
+
+.status-tag-small.status-candidate {
+  background: rgba(250, 140, 22, 0.1);
+  color: #fa8c16;
+}
+
+.status-tag-small.status-youth {
+  background: rgba(82, 196, 26, 0.1);
+  color: #52c41a;
+}
+
+.status-tag-small.status-masses {
+  background: rgba(24, 144, 255, 0.1);
+  color: #1890ff;
+}
+
 .pagination {
   display: flex;
   justify-content: center;
@@ -525,10 +653,20 @@ watch(() => props.members, () => {
   transition: all 0.3s ease;
 }
 
-.btn-export:hover {
+.btn-export:hover:not(:disabled) {
   background: #d9363e;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(199, 0, 10, 0.2);
+}
+
+.btn-export:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-export:disabled:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .export-icon {
@@ -538,6 +676,27 @@ watch(() => props.members, () => {
 .footer-info {
   font-size: 13px;
   color: #8c8c8c;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s linear infinite;
+  margin-right: 6px;
+}
+
+.loading-spinner.small {
+  width: 12px;
+  height: 12px;
+  border-width: 1.5px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 768px) {

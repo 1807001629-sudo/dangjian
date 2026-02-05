@@ -1,57 +1,84 @@
-<!-- src/components/filters/ProcessFilter.vue -->
+<!-- src/components/filters/ProcessFilter.vue (Element Plus版本) -->
 <template>
   <div class="process-filter">
     <div class="filter-row">
       <div class="filter-group">
         <label class="filter-label">班级</label>
-        <select v-model="filters.class" class="filter-select" @change="emitFilters">
-          <option value="">全部班级</option>
-          <option v-for="className in uniqueClasses" :key="className" :value="className">
-            {{ className }}
-          </option>
-        </select>
+        <el-select
+          v-model="filters.class"
+          placeholder="全部班级"
+          clearable
+          size="medium"
+          @change="emitFilters"
+          style="width: 100%;"
+        >
+          <el-option
+            v-for="className in uniqueClasses"
+            :key="className"
+            :label="className"
+            :value="className"
+          />
+        </el-select>
       </div>
       
       <div class="filter-group">
         <label class="filter-label">政治面貌</label>
-        <select v-model="filters.politicalStatus" class="filter-select" @change="emitFilters">
-          <option value="">全部</option>
-          <option value="中共党员">中共党员</option>
-          <option value="中共预备党员">中共预备党员</option>
-          <option value="共青团员">共青团员</option>
-          <option value="群众">群众</option>
-        </select>
+        <el-select
+          v-model="filters.politicalStatus"
+          placeholder="全部"
+          clearable
+          size="medium"
+          @change="emitFilters"
+          style="width: 100%;"
+        >
+          <el-option label="中共党员" value="中共党员" />
+          <el-option label="中共预备党员" value="中共预备党员" />
+          <el-option label="共青团员" value="共青团员" />
+          <el-option label="群众" value="群众" />
+        </el-select>
       </div>
       
       <div class="filter-group">
         <label class="filter-label">入党阶段</label>
-        <select v-model="filters.stage" class="filter-select" @change="emitFilters">
-          <option value="">全部阶段</option>
-          <option value="入党申请人">入党申请人</option>
-          <option value="入党积极分子">入党积极分子</option>
-          <option value="中共预备党员">中共预备党员</option>
-          <option value="中共党员">中共党员</option>
-          <option value="未开始">未开始</option>
-        </select>
+        <el-select
+          v-model="filters.stage"
+          placeholder="全部阶段"
+          clearable
+          size="medium"
+          @change="emitFilters"
+          style="width: 100%;"
+        >
+          <el-option label="入党申请人" value="入党申请人" />
+          <el-option label="入党积极分子" value="入党积极分子" />
+          <el-option label="中共预备党员" value="中共预备党员" />
+          <el-option label="中共党员" value="中共党员" />
+          <el-option label="未开始" value="未开始" />
+        </el-select>
       </div>
       
       <div class="filter-group">
-        <label class="filter-label">活动时数</label>
+        <label class="filter-label">活动时数范围</label>
         <div class="range-inputs">
-          <input 
-            type="number" 
-            v-model="filters.hoursMin" 
+          <el-input-number
+            v-model="filters.hoursMin"
             placeholder="最小"
-            class="range-input"
-            @input="emitFilters"
+            size="medium"
+            :min="0"
+            :precision="1"
+            controls-position="right"
+            @change="emitFilters"
+            style="width: 100%;"
           />
           <span class="range-separator">-</span>
-          <input 
-            type="number" 
-            v-model="filters.hoursMax" 
+          <el-input-number
+            v-model="filters.hoursMax"
             placeholder="最大"
-            class="range-input"
-            @input="emitFilters"
+            size="medium"
+            :min="0"
+            :precision="1"
+            controls-position="right"
+            @change="emitFilters"
+            style="width: 100%;"
           />
         </div>
       </div>
@@ -60,25 +87,33 @@
     <div class="filter-row">
       <div class="filter-group search-group">
         <label class="filter-label">搜索</label>
-        <div class="search-box">
-          <input 
-            type="text"
-            v-model="filters.search"
-            placeholder="搜索姓名、学号"
-            class="search-input"
-            @input="emitFilters"
-          />
-          <span class="search-icon">🔍</span>
-        </div>
+        <el-input
+          v-model="filters.search"
+          placeholder="搜索姓名、学号"
+          clearable
+          size="medium"
+          @input="emitFilters"
+          :prefix-icon="Search"
+          style="width: 100%;"
+        />
       </div>
       
-      <button class="btn-reset" @click="resetFilters">重置筛选</button>
+      <el-button 
+        type="info" 
+        plain 
+        size="medium" 
+        @click="resetFilters"
+        style="align-self: flex-end;"
+      >
+        重置筛选
+      </el-button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, defineEmits, defineProps } from 'vue'
+import { Search } from '@element-plus/icons-vue'
 
 const props = defineProps({
   uniqueClasses: {
@@ -125,14 +160,14 @@ const resetFilters = () => {
 .process-filter {
   background: white;
   border-radius: 8px;
-  padding: 16px;
+  padding: 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   margin-bottom: 16px;
 }
 
 .filter-row {
   display: flex;
-  gap: 16px;
+  gap: 20px;
   margin-bottom: 16px;
   flex-wrap: wrap;
 }
@@ -146,6 +181,11 @@ const resetFilters = () => {
   min-width: 200px;
 }
 
+.search-group {
+  flex: 2;
+  min-width: 300px;
+}
+
 .filter-label {
   display: block;
   margin-bottom: 8px;
@@ -154,113 +194,54 @@ const resetFilters = () => {
   color: #595959;
 }
 
-.filter-select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  font-size: 14px;
-  color: #262626;
-  background: white;
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
-
-.filter-select:focus {
-  outline: none;
-  border-color: #c7000a;
-  box-shadow: 0 0 0 2px rgba(199, 0, 10, 0.1);
-}
-
 .range-inputs {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.range-input {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  font-size: 14px;
-  color: #262626;
-  width: 0; /* 让flex分配宽度 */
-}
-
-.range-input:focus {
-  outline: none;
-  border-color: #c7000a;
-}
-
 .range-separator {
   color: #8c8c8c;
   padding: 0 4px;
+  font-size: 14px;
 }
 
-.search-group {
-  flex: 2;
-}
-
-.search-box {
-  position: relative;
-}
-
-.search-input {
+/* 调整Element Plus组件样式 */
+:deep(.el-select) {
   width: 100%;
-  padding: 8px 12px 8px 36px;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  font-size: 14px;
-  color: #262626;
 }
 
-.search-input:focus {
-  outline: none;
-  border-color: #c7000a;
+:deep(.el-input) {
+  width: 100%;
 }
 
-.search-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #8c8c8c;
-  pointer-events: none;
+:deep(.el-input__inner) {
+  border-radius: 6px;
 }
 
-.btn-reset {
-  align-self: flex-end;
-  padding: 8px 24px;
-  background: #f5f5f5;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  font-size: 14px;
-  color: #595959;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  height: 38px;
-  white-space: nowrap;
+:deep(.el-input-number) {
+  width: 100%;
 }
 
-.btn-reset:hover {
-  background: #fff1f0;
-  border-color: #ffa39e;
-  color: #c7000a;
-}
-
+/* 响应式设计 */
 @media (max-width: 768px) {
   .filter-row {
     flex-direction: column;
+    gap: 16px;
   }
   
   .filter-group {
     min-width: 100%;
   }
   
-  .btn-reset {
-    align-self: stretch;
-    height: 40px;
+  .range-inputs {
+    gap: 16px;
+  }
+  
+  :deep(.el-select),
+  :deep(.el-input),
+  :deep(.el-input-number) {
+    width: 100%;
   }
 }
 </style>

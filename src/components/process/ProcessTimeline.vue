@@ -1,7 +1,20 @@
 <!-- src/components/process/ProcessTimeline.vue -->
 <template>
   <div class="process-timeline">
-    <div class="timeline-container">
+    <div v-if="loading" class="loading-state">
+      正在加载时间线数据...
+    </div>
+    
+    <div v-else-if="error" class="error-state">
+      加载失败: {{ error }}
+      <button @click="fetchMemberDetails" class="retry-btn">重试</button>
+    </div>
+    
+    <div v-else-if="timelineStages.length === 0" class="empty-state">
+      暂无时间线数据
+    </div>
+    
+    <div v-else class="timeline-container">
       <div 
         v-for="stage in timelineStages" 
         :key="stage.id"
@@ -25,9 +38,7 @@
           <div class="stage-content">
             <div class="stage-time" v-if="stage.time">{{ formatDate(stage.time) }}</div>
             <div class="stage-placeholder" v-else></div>
-            <div class="stage-score" v-if="stage.score !== undefined && stage.score > 0">
-              成绩: {{ stage.score }}
-            </div>
+            <div class="stage-description">{{ stage.description }}</div>
             <div class="stage-status">
               {{ getStageStatus(stage) }}
             </div>
@@ -39,105 +50,165 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
+import apiService from '@/services/apiService'
+import { 
+  formatDateStr, 
+  getProcessStageText,
+  getProcessStageNumber 
+} from '@/services/dataTransformer'
 
 const props = defineProps({
+  memberId: {
+    type: [String, Number],
+    default: null
+  },
   member: {
     type: Object,
     default: () => ({})
   }
 })
 
-const emit = defineEmits(['stage-click'])
+const emit = defineEmits(['stage-click', 'loading', 'error'])
 
+const memberData = ref(props.member)
+const loading = ref(false)
+const error = ref(null)
+
+// 获取成员详情
+async function fetchMemberDetails() {
+  if (!props.memberId || Object.keys(props.member).length > 0) return
+  
+  loading.value = true
+  error.value = null
+  emit('loading', true)
+  
+  try {
+    const response = await apiService.getMemberById(props.memberId)
+    memberData.value = response.data || response
+    console.log('获取成员详情成功:', memberData.value)
+  } catch (err) {
+    console.error('获取成员详情失败:', err)
+    error.value = err.message || '获取成员信息失败'
+    emit('error', error.value)
+  } finally {
+    loading.value = false
+    emit('loading', false)
+  }
+}
+
+// 监听memberId变化
+watch(() => props.memberId, (newId) => {
+  if (newId && Object.keys(props.member).length === 0) {
+    fetchMemberDetails()
+  }
+})
+
+// 监听member变化
+watch(() => props.member, (newMember) => {
+  if (newMember && Object.keys(newMember).length > 0) {
+    memberData.value = newMember
+  }
+})
+
+// 初始化
+onMounted(() => {
+  if (props.memberId && Object.keys(props.member).length === 0) {
+    fetchMemberDetails()
+  }
+})
+
+// 计算时间线阶段
 const timelineStages = computed(() => {
-  const member = props.member || {}
-  const currentStage = member.processStage || '未开始'
+  const member = Object.keys(props.member).length > 0 ? props.member : memberData.value
+  if (!member || Object.keys(member).length === 0) {
+    return []
+  }
+  
+  // 使用新的函数获取当前阶段
+  const currentStage = getProcessStageText(member)
+  const stageNumber = getProcessStageNumber(member)
+  
+  // 使用统一的日期格式化
+  const formatTime = (time) => {
+    if (!time) return null
+    return formatDateStr(time)
+  }
   
   const stages = [
     {
       id: 1,
       number: 1,
-      title: '入团',
-      time: member.入团时间 || null,
-      // 仅在有入团时间时才显示完成
-      isCompleted: !!member.入团时间,
-      isActive: false,
-      isUpcoming: !member.入团时间 && currentStage !== '未开始',
-      key: '入团时间',
-      isLast: false
+      title: '申请入党',
+      time: formatTime(member.递交入党申请书),
+      isCompleted: stageNumber >= 1, // 入党申请人及以上阶段
+      isActive: currentStage === '入党申请人',
+      isUpcoming: stageNumber === 0, // 未开始
+      key: '递交入党申请书',
+      isLast: false,
+      description: '提交入党申请书'
     },
     {
       id: 2,
       number: 2,
-      title: '申请入党',
-      time: member.申请入党时间 || null,
-      // 如果已经是积极分子及以上阶段，默认申请入党已完成
-      isCompleted: ['入党申请人', '入党积极分子', '中共预备党员', '中共党员'].includes(currentStage),
-      isActive: currentStage === '入党申请人',
-      isUpcoming: currentStage === '未开始',
-      key: '申请入党时间',
-      isLast: false
+      title: '入党积极分子',
+      time: formatTime(member.积极分子时间),
+      isCompleted: stageNumber >= 2, // 积极分子及以上阶段
+      isActive: currentStage === '入党积极分子',
+      isUpcoming: stageNumber === 1, // 刚刚提交申请
+      key: '积极分子时间',
+      isLast: false,
+      description: '确定为入党积极分子'
     },
     {
       id: 3,
       number: 3,
-      title: '600题考试',
-      time: member['600题考试时间'] || null,
-      score: member['600题考试成绩'] || null,
-      // 如果已经是积极分子及以上阶段，默认600题考试已完成
-      isCompleted: member['600题考试成绩'] > 0 || ['入党积极分子', '中共预备党员', '中共党员'].includes(currentStage),
-      isActive: false,
-      isUpcoming: currentStage === '入党申请人',
-      key: '600题考试',
-      isLast: false
+      title: '发展对象',
+      time: formatTime(member.确定为发展对象日期),
+      isCompleted: stageNumber >= 3, // 发展对象及以上阶段
+      isActive: currentStage === '确定为发展对象',
+      isUpcoming: stageNumber === 2, // 积极分子阶段
+      key: '确定为发展对象日期',
+      isLast: false,
+      description: '确定为发展对象'
     },
     {
       id: 4,
       number: 4,
-      title: '入党积极分子',
-      time: member['党支部接收入党积极分子时间'] || null,
-      // 如果已经是预备党员或党员，默认积极分子阶段已完成
-      isCompleted: !!member['党支部接收入党积极分子时间'] || ['中共预备党员', '中共党员'].includes(currentStage),
-      isActive: currentStage === '入党积极分子',
-      isUpcoming: ['入党申请人', '未开始'].includes(currentStage),
-      key: '入党积极分子',
-      isLast: false
+      title: '预备党员',
+      time: formatTime(member.支部大会),
+      isCompleted: stageNumber >= 4, // 预备党员及以上阶段
+      isActive: currentStage === '中共预备党员',
+      isUpcoming: stageNumber === 3, // 发展对象阶段
+      key: '支部大会',
+      isLast: false,
+      description: '支部大会通过，成为预备党员'
     },
     {
       id: 5,
       number: 5,
-      title: '预备党员',
-      time: null,
-      // 如果是党员，默认预备党员已完成
-      isCompleted: currentStage === '中共党员',
-      isActive: currentStage === '中共预备党员',
-      isUpcoming: ['未开始', '入党申请人', '入党积极分子'].includes(currentStage),
-      key: '中共预备党员',
-      isLast: false
-    },
-    {
-      id: 6,
-      number: 6,
       title: '正式党员',
-      time: null,
-      isCompleted: currentStage === '中共党员',
+      time: formatTime(member.转正时间),
+      isCompleted: stageNumber >= 5, // 正式党员
       isActive: currentStage === '中共党员',
-      isUpcoming: !(currentStage === '中共党员'),
+      isUpcoming: stageNumber === 4, // 预备党员阶段
       isLast: true,
-      key: '中共党员'
+      key: '转正时间',
+      description: '预备党员转正'
     }
   ]
   
   return stages
 })
 
+// 获取标记图标
 const getMarkerIcon = (stage) => {
   if (stage.isCompleted) return '✓'
   if (stage.isActive) return '●'
   return stage.number
 }
 
+// 获取阶段状态文本
 const getStageStatus = (stage) => {
   if (stage.isCompleted) return '已完成'
   if (stage.isActive) return '进行中'
@@ -145,48 +216,10 @@ const getStageStatus = (stage) => {
   return '未开始'
 }
 
+// 格式化日期
 const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  
-  // 如果已经是格式化好的 YYYY/MM/DD 格式，直接返回
-  if (typeof dateStr === 'string' && /^\d{4}\/\d{2}\/\d{2}$/.test(dateStr)) {
-    return dateStr
-  }
-  
-  try {
-    // 尝试解析日期
-    let date
-    if (typeof dateStr === 'string') {
-      // 尝试解析 YYYY/MM/DD
-      if (/^\d{4}\/\d{2}\/\d{2}$/.test(dateStr)) {
-        const [year, month, day] = dateStr.split('/')
-        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-      } 
-      // 尝试解析 YYYY-MM-DD
-      else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-        date = new Date(dateStr)
-      }
-      // 尝试解析数字格式 YYYYMMDD
-      else if (/^\d{8}$/.test(dateStr)) {
-        const year = dateStr.substring(0, 4)
-        const month = dateStr.substring(4, 6)
-        const day = dateStr.substring(6, 8)
-        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-      }
-    }
-    
-    if (date && !isNaN(date.getTime())) {
-      return date.toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).replace(/\//g, '/')
-    }
-    
-    return dateStr
-  } catch (e) {
-    return dateStr
-  }
+  const formatted = formatDateStr(dateStr)
+  return formatted || dateStr || ''
 }
 </script>
 
@@ -196,6 +229,34 @@ const formatDate = (dateStr) => {
   background: #fafafa;
   border-radius: 8px;
   border: 1px solid #f0f0f0;
+  min-height: 200px;
+}
+
+.loading-state,
+.error-state,
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #8c8c8c;
+}
+
+.error-state {
+  color: #ff4d4f;
+}
+
+.retry-btn {
+  margin-top: 12px;
+  padding: 6px 16px;
+  background: #ff4d4f;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.retry-btn:hover {
+  background: #ff7875;
 }
 
 .timeline-container {
@@ -212,7 +273,7 @@ const formatDate = (dateStr) => {
   padding: 0 8px;
   position: relative;
   cursor: pointer;
-  min-height: 140px; /* 固定最小高度 */
+  min-height: 140px;
 }
 
 .timeline-stage:hover .stage-content-wrapper {
@@ -227,7 +288,7 @@ const formatDate = (dateStr) => {
   margin-bottom: 12px;
   position: relative;
   width: 100%;
-  height: 40px; /* 固定标记区域高度 */
+  height: 40px;
 }
 
 .marker-icon {
@@ -286,7 +347,7 @@ const formatDate = (dateStr) => {
   background: #fafafa;
   transition: all 0.3s ease;
   width: 100%;
-  min-height: 100px; /* 固定内容区域最小高度 */
+  min-height: 120px;
   border: 1px solid transparent;
   display: flex;
   flex-direction: column;
@@ -308,9 +369,9 @@ const formatDate = (dateStr) => {
   font-weight: 600;
   font-size: 14px;
   color: #262626;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   line-height: 1.4;
-  min-height: 20px; /* 固定标题高度 */
+  min-height: 20px;
 }
 
 .stage-content {
@@ -318,15 +379,15 @@ const formatDate = (dateStr) => {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 60px; /* 固定内容区域高度 */
+  min-height: 80px;
 }
 
 .stage-time {
   font-size: 12px;
   color: #8c8c8c;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   line-height: 1.4;
-  min-height: 18px; /* 固定时间区域高度 */
+  min-height: 18px;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -334,19 +395,18 @@ const formatDate = (dateStr) => {
   -webkit-box-orient: vertical;
 }
 
-.stage-placeholder {
-  height: 18px; /* 占位符，保持与有时间时相同的高度 */
-  visibility: hidden; /* 隐藏但占据空间 */
-  margin-bottom: 6px;
+.stage-description {
+  font-size: 11px;
+  color: #bfbfbf;
+  margin-bottom: 8px;
+  line-height: 1.4;
+  min-height: 16px;
 }
 
-.stage-score {
-  font-size: 12px;
-  font-weight: 500;
-  color: #1890ff;
-  margin-bottom: 6px;
-  line-height: 1.4;
-  min-height: 18px; /* 固定成绩区域高度 */
+.stage-placeholder {
+  height: 18px;
+  visibility: hidden;
+  margin-bottom: 4px;
 }
 
 .stage-status {
@@ -357,7 +417,7 @@ const formatDate = (dateStr) => {
   background: rgba(82, 196, 26, 0.1);
   color: #52c41a;
   line-height: 1.4;
-  min-height: 20px; /* 固定状态区域高度 */
+  min-height: 20px;
   align-self: center;
   margin-top: auto;
 }
@@ -372,7 +432,6 @@ const formatDate = (dateStr) => {
   color: #8c8c8c;
 }
 
-/* 确保所有阶段对齐 */
 .timeline-stage:first-child {
   align-items: flex-start;
 }

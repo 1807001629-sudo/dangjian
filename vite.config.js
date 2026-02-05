@@ -1,30 +1,51 @@
-import { defineConfig } from 'vite';
-import vue from '@vitejs/plugin-vue';
-import { resolve } from 'path';
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import path from 'path'
 
 export default defineConfig({
   plugins: [vue()],
+  
+  // 解决路径问题
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
+      '@': path.resolve(__dirname, './src')
     }
   },
+  
+  // 服务器配置（针对HBuilder X优化）
   server: {
-    host: '0.0.0.0',    // 新增：允许所有网络访问
+    host: 'localhost',
     port: 3000,
-    open: true,
-    // 可选：设置服务器响应头，解决一些跨域问题
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-      'Access-Control-Allow-Headers': 'X-Requested-With, content-type, Authorization'
+    open: false,
+    cors: true,
+    hmr: true,
+    
+    // 代理配置
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '/api')
+      }
     }
   },
+  
+  // 构建配置
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false
+  },
+  
+  // 公共基础路径（HBuilder X可能需要）
+  base: './',
+  
+  // CSS配置
   css: {
     preprocessorOptions: {
       scss: {
-        additionalData: `@import "@/assets/styles/variables.scss";`
+        additionalData: ''
       }
     }
   }
-});
+})

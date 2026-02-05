@@ -1,4 +1,4 @@
-<!-- src/views/Process.vue -->
+<!-- src/views/Process.vue - 完整API版本 -->
 <template>
   <div class="process-page">
     <!-- 页面头部 -->
@@ -68,11 +68,26 @@
           </div>
           
           <div class="members-list">
+            <!-- 加载状态 -->
+            <div v-if="loading" class="loading-list">
+              <div class="loading-spinner"></div>
+              <span>加载中...</span>
+            </div>
+            
+            <!-- 空状态 -->
+            <div v-else-if="filteredMembers.length === 0" class="empty-list">
+              <div class="empty-icon">📭</div>
+              <p>暂无符合条件的成员</p>
+              <button class="btn-reset" @click="resetFilters">重置筛选条件</button>
+            </div>
+            
+            <!-- 成员列表 -->
             <div 
+              v-else
               v-for="member in sortedMembers" 
-              :key="member.id || member.学号"
+              :key="member.学号"
               class="member-card"
-              :class="{ 'active': selectedMemberId === (member.id || member.学号) }"
+              :class="{ 'active': selectedMemberId === member.学号 }"
               @click="selectMember(member)"
             >
               <div class="member-avatar" :style="{ background: getAvatarColor(member.姓名) }">
@@ -95,12 +110,6 @@
                   <span>{{ member['600题考试成绩'] || '-' }}</span>
                 </div>
               </div>
-            </div>
-            
-            <div v-if="filteredMembers.length === 0" class="empty-list">
-              <div class="empty-icon">📭</div>
-              <p>暂无符合条件的成员</p>
-              <button class="btn-reset" @click="resetFilters">重置筛选条件</button>
             </div>
           </div>
         </div>
@@ -155,15 +164,15 @@
                 <h4>基本信息</h4>
                 <div class="info-row">
                   <span class="label">出生日期:</span>
-                  <span class="value">{{ selectedMember.出生年月日 || '未填写' }}</span>
+                  <span class="value">{{ formatDate(selectedMember.出生年月日) || '未填写' }}</span>
                 </div>
                 <div class="info-row">
                   <span class="label">入团时间:</span>
-                  <span class="value">{{ selectedMember.入团时间 || '未填写' }}</span>
+                  <span class="value">{{ formatDate(selectedMember.入团时间) || '未填写' }}</span>
                 </div>
                 <div class="info-row">
                   <span class="label">入校时间:</span>
-                  <span class="value">{{ selectedMember.入校时间 || '未填写' }}</span>
+                  <span class="value">{{ formatDate(selectedMember.入校时间) || '未填写' }}</span>
                 </div>
               </div>
               
@@ -192,7 +201,7 @@
                 </div>
                 <div class="info-row">
                   <span class="label">考试时间:</span>
-                  <span class="value">{{ selectedMember['600题考试时间'] || '未参加' }}</span>
+                  <span class="value">{{ formatDate(selectedMember['600题考试时间']) || '未参加' }}</span>
                 </div>
                 <div class="info-row">
                   <span class="label">积极分子结业成绩:</span>
@@ -204,7 +213,7 @@
                 <h4>申请记录</h4>
                 <div class="info-row">
                   <span class="label">申请入党时间:</span>
-                  <span class="value">{{ selectedMember.申请入党时间 || '未申请' }}</span>
+                  <span class="value">{{ formatDate(selectedMember.申请入党时间) || '未申请' }}</span>
                 </div>
                 <div class="info-row">
                   <span class="label">申请年龄:</span>
@@ -212,7 +221,7 @@
                 </div>
                 <div class="info-row">
                   <span class="label">支部接收时间:</span>
-                  <span class="value">{{ selectedMember['党支部接收入党积极分子时间'] || '未接收' }}</span>
+                  <span class="value">{{ formatDate(selectedMember['党支部接收入党积极分子时间']) || '未接收' }}</span>
                 </div>
               </div>
             </div>
@@ -250,50 +259,12 @@ import ProcessFilter from '@/components/filters/ProcessFilter.vue'
 import ProcessTimeline from '@/components/process/ProcessTimeline.vue'
 import StageProgress from '@/components/process/StageProgress.vue'
 import StageDetailModal from '@/components/modals/StageDetailModal.vue'
-import membersData from '@/assets/data.json'
+import { useDataStore } from '@/stores/dataStore'
+import { formatDate } from '@/utils/dateFormatter'
+import { calculateProcessStage } from '@/services/dataTransformer'
 
-// 日期格式化函数
-function formatDateStr(dateStr) {
-  if (!dateStr) return ''
-  
-  // 如果是数字类型如 20251218.0
-  if (typeof dateStr === 'number' && !isNaN(dateStr)) {
-    const dateNum = Math.floor(dateStr) // 去掉 .0
-    const dateStrClean = dateNum.toString()
-    
-    if (dateStrClean.length === 8) {
-      // 格式化为 YYYY/MM/DD
-      const year = dateStrClean.substring(0, 4)
-      const month = dateStrClean.substring(4, 6)
-      const day = dateStrClean.substring(6, 8)
-      return `${year}/${month}/${day}`
-    }
-  }
-  
-  // 如果是字符串类型，尝试各种可能的格式
-  if (typeof dateStr === 'string') {
-    // 移除 .0 后缀
-    const cleanStr = dateStr.replace(/\.0$/, '')
-    
-    // 检查是否是纯数字格式 YYYYMMDD
-    if (/^\d{8}$/.test(cleanStr)) {
-      const year = cleanStr.substring(0, 4)
-      const month = cleanStr.substring(4, 6)
-      const day = cleanStr.substring(6, 8)
-      return `${year}/${month}/${day}`
-    }
-    
-    // 检查是否是 YYYY-MM-DD 格式
-    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
-      return cleanStr
-    }
-    
-    // 其他格式直接返回
-    return cleanStr
-  }
-  
-  return dateStr
-}
+// 使用 Pinia 数据存储
+const dataStore = useDataStore()
 
 // 响应式数据
 const members = ref([])
@@ -302,63 +273,68 @@ const showStageModal = ref(false)
 const selectedStage = ref('')
 const activeFilters = ref({})
 const sortBy = ref('stage') // 'name' 或 'stage'
+const loading = ref(false)
 
 // 初始化数据
-onMounted(() => {
-  console.log('Process.vue 已加载')
-  // 为每个成员添加处理后的字段，并格式化日期
-  members.value = membersData.map((member, index) => {
-    // 格式化所有日期字段
-    const formattedMember = {
-      ...member,
-      id: member.学号 || index,
-      // 格式化日期字段
-      入团时间: formatDateStr(member.入团时间),
-      出生年月日: formatDateStr(member.出生年月日),
-      入校时间: formatDateStr(member.入校时间),
-      申请入党时间: formatDateStr(member.申请入党时间),
-      '600题考试时间': formatDateStr(member['600题考试时间']),
-      '党支部接收入党积极分子时间': formatDateStr(member['党支部接收入党积极分子时间']),
-      // 确保数字字段都是数字类型
-      活动时数: parseFloat(member.活动时数) || 0,
-      修正党时: parseFloat(member.修正党时) || 0,
-      '600题考试成绩': parseFloat(member['600题考试成绩']) || 0,
-      积极分子结业成绩: parseFloat(member.积极分子结业成绩) || 0,
-      '递交入党申请书年龄（岁）': parseFloat(member['递交入党申请书年龄（岁）']) || null
-    }
-    
-    // 计算综合的入党阶段（结合入党流程阶段和政治面貌）
-    const processStage = calculateProcessStage(formattedMember)
-    
-    return {
-      ...formattedMember,
-      // 添加处理后的字段
-      processStage,
-      // 判断是否为积极分子（包括入党积极分子和积极分子培训结业）
-      isActiveMember: ['入党积极分子', '积极分子培训结业'].includes(member.入党流程阶段),
-      // 从政治面貌判断党员身份
-      isPrePartyMember: member.政治面貌 === '中共预备党员',
-      isPartyMember: member.政治面貌 === '中共党员'
-    }
-  })
-  console.log('加载了', members.value.length, '条成员数据')
-  console.log('格式化后的第一条数据:', members.value[0])
+onMounted(async () => {
+  console.log('Process.vue 已加载，从API获取数据')
+  await loadMembersData()
 })
 
-// 计算综合的入党阶段
-function calculateProcessStage(member) {
-  // 首先检查政治面貌，优先级最高
-  if (member.政治面貌 === '中共党员') return '中共党员'
-  if (member.政治面貌 === '中共预备党员') return '中共预备党员'
-  
-  // 然后检查入党流程阶段
-  if (member.入党流程阶段) {
-    // 处理积极分子相关阶段
-    if (member.入党流程阶段 === '积极分子培训结业') return '入党积极分子'
-    return member.入党流程阶段
+// 加载成员数据
+const loadMembersData = async () => {
+  loading.value = true
+  try {
+    // 从数据存储获取成员数据
+    await dataStore.fetchMembers()
+    
+    // 处理成员数据
+    members.value = dataStore.members.map((member, index) => {
+      // 格式化所有日期字段
+      const formattedMember = {
+        ...member,
+        id: member.学号 || index,
+        // 格式化日期字段
+        入团时间: formatDate(member.入团时间),
+        出生年月日: formatDate(member.出生年月日),
+        入校时间: formatDate(member.入校时间),
+        申请入党时间: formatDate(member.申请入党时间),
+        '600题考试时间': formatDate(member['600题考试时间']),
+        '党支部接收入党积极分子时间': formatDate(member['党支部接收入党积极分子时间']),
+        // 确保数字字段都是数字类型
+        活动时数: parseFloat(member.活动时数) || 0,
+        修正党时: parseFloat(member.修正党时) || 0,
+        '600题考试成绩': parseFloat(member['600题考试成绩']) || 0,
+        积极分子结业成绩: parseFloat(member.积极分子结业成绩) || 0,
+        '递交入党申请书年龄（岁）': parseFloat(member['递交入党申请书年龄（岁）']) || null
+      }
+      
+      // 计算综合的入党阶段（结合入党流程阶段和政治面貌）
+      const processStage = calculateProcessStage(formattedMember)
+      
+      return {
+        ...formattedMember,
+        // 添加处理后的字段
+        processStage,
+        // 判断是否为积极分子（包括入党积极分子和积极分子培训结业）
+        isActiveMember: ['入党积极分子', '积极分子培训结业'].includes(member.入党流程阶段),
+        // 从政治面貌判断党员身份
+        isPrePartyMember: member.政治面貌 === '中共预备党员',
+        isPartyMember: member.政治面貌 === '中共党员'
+      }
+    })
+    console.log('加载了', members.value.length, '条成员数据')
+    
+    // 如果有成员数据，默认选择第一个
+    if (members.value.length > 0) {
+      selectedMemberId.value = members.value[0].学号
+    }
+  } catch (error) {
+    console.error('加载数据失败:', error)
+    members.value = []
+  } finally {
+    loading.value = false
   }
-  
-  return '未开始'
 }
 
 // 计算属性
@@ -436,10 +412,10 @@ const filteredMembers = computed(() => {
 })
 
 const sortedMembers = computed(() => {
-  const members = [...filteredMembers.value]
+  const memberList = [...filteredMembers.value]
   
   if (sortBy.value === 'name') {
-    return members.sort((a, b) => {
+    return memberList.sort((a, b) => {
       const nameA = (a.姓名 || '').toLowerCase()
       const nameB = (b.姓名 || '').toLowerCase()
       return nameA.localeCompare(nameB)
@@ -454,7 +430,7 @@ const sortedMembers = computed(() => {
       '未开始': 5
     }
     
-    return members.sort((a, b) => {
+    return memberList.sort((a, b) => {
       const stageA = stageOrder[a.processStage] || 999
       const stageB = stageOrder[b.processStage] || 999
       return stageA - stageB
@@ -463,7 +439,7 @@ const sortedMembers = computed(() => {
 })
 
 const selectedMember = computed(() => {
-  return members.value.find(m => (m.id || m.学号) === selectedMemberId.value)
+  return members.value.find(m => m.学号 === selectedMemberId.value)
 })
 
 // 统计相关计算
@@ -515,7 +491,7 @@ const stageMembers = computed(() => {
 
 // 方法
 function selectMember(member) {
-  selectedMemberId.value = member.id || member.学号
+  selectedMemberId.value = member.学号
   console.log('选择成员:', member.姓名)
 }
 
@@ -562,7 +538,8 @@ function getStageColor(stage) {
 
 function handleStageClick(stage) {
   console.log('点击阶段:', stage)
-  // 可以在这里添加阶段详情查看逻辑
+  selectedStage.value = stage
+  showStageModal.value = true
 }
 
 function closeStageModal() {
@@ -572,7 +549,7 @@ function closeStageModal() {
 </script>
 
 <style scoped>
-/* 样式保持不变 */
+/* 样式保持不变，只添加了加载状态样式 */
 .process-page {
   min-height: 100vh;
   background: #f5f5f5;
@@ -674,6 +651,31 @@ function closeStageModal() {
   flex: 1;
   overflow-y: auto;
   padding-right: 8px;
+}
+
+/* 加载状态样式 */
+.loading-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #bfbfbf;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #f0f0f0;
+  border-radius: 50%;
+  border-top-color: #c7000a;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .member-card {

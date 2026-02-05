@@ -13,7 +13,20 @@
       ></div>
     </div>
     
-    <div class="stages-list">
+    <div v-if="loading" class="loading-state">
+      正在加载进度数据...
+    </div>
+    
+    <div v-else-if="error" class="error-state">
+      加载失败: {{ error }}
+      <button @click="fetchMemberDetails" class="retry-btn">重试</button>
+    </div>
+    
+    <div v-else-if="stages.length === 0" class="empty-state">
+      暂无进度数据
+    </div>
+    
+    <div v-else class="stages-list">
       <div 
         v-for="stage in stages" 
         :key="stage.id"
@@ -37,129 +50,152 @@
   </div>
 </template>
 
-<!-- src/components/process/StageProgress.vue -->
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
+import apiService from '@/services/apiService'
+import { 
+  formatDateStr, 
+  getProcessStageText,
+  getProcessStageNumber 
+} from '@/services/dataTransformer'
 
 const props = defineProps({
+  memberId: {
+    type: [String, Number],
+    default: null
+  },
   member: {
     type: Object,
     default: () => ({})
   }
 })
 
+const memberData = ref(props.member)
+const loading = ref(false)
+const error = ref(null)
+
+// 获取成员详情
+async function fetchMemberDetails() {
+  if (!props.memberId || Object.keys(props.member).length > 0) return
+  
+  loading.value = true
+  error.value = null
+  
+  try {
+    const response = await apiService.getMemberById(props.memberId)
+    memberData.value = response.data || response
+    console.log('获取成员进度详情成功:', memberData.value)
+  } catch (err) {
+    console.error('获取成员进度详情失败:', err)
+    error.value = err.message || '获取成员进度信息失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+// 监听memberId变化
+watch(() => props.memberId, (newId) => {
+  if (newId && Object.keys(props.member).length === 0) {
+    fetchMemberDetails()
+  }
+})
+
+// 监听member变化
+watch(() => props.member, (newMember) => {
+  if (newMember && Object.keys(newMember).length > 0) {
+    memberData.value = newMember
+  }
+})
+
+// 初始化
+onMounted(() => {
+  if (props.memberId && Object.keys(props.member).length === 0) {
+    fetchMemberDetails()
+  }
+})
+
+// 计算阶段列表
 const stages = computed(() => {
-  const member = props.member || {}
-  const currentStage = member.processStage || '未开始'
+  const member = Object.keys(props.member).length > 0 ? props.member : memberData.value
+  if (!member || Object.keys(member).length === 0) {
+    return []
+  }
+  
+  const currentStage = getProcessStageText(member)
+  const stageNumber = getProcessStageNumber(member)
+  
+  // 使用统一的日期格式化
+  const formatTime = (time) => {
+    if (!time) return null
+    return formatDateStr(time)
+  }
   
   const allStages = [
     {
       id: 1,
-      name: '入团',
-      description: '加入共青团',
-      completed: !!member.入团时间,
-      current: false,
-      pending: !member.入团时间 && currentStage !== '未开始',
-      time: member.入团时间
+      name: '申请入党',
+      description: '提交入党申请书',
+      completed: stageNumber >= 1,
+      current: currentStage === '入党申请人',
+      pending: stageNumber === 0,
+      time: formatTime(member.递交入党申请书)
     },
     {
       id: 2,
-      name: '申请入党',
-      description: '提交入党申请书',
-      completed: ['入党申请人', '入党积极分子', '中共预备党员', '中共党员'].includes(currentStage),
-      current: currentStage === '入党申请人',
-      pending: currentStage === '未开始',
-      time: member.申请入党时间
+      name: '入党积极分子',
+      description: '确定为入党积极分子',
+      completed: stageNumber >= 2,
+      current: currentStage === '入党积极分子',
+      pending: stageNumber === 1,
+      time: formatTime(member.积极分子时间)
     },
     {
       id: 3,
-      name: '600题考试',
-      description: '完成党的知识考试',
-      completed: member['600题考试成绩'] > 0 || ['入党积极分子', '中共预备党员', '中共党员'].includes(currentStage),
-      current: false,
-      pending: currentStage === '入党申请人',
-      time: member['600题考试时间']
+      name: '发展对象',
+      description: '确定为发展对象',
+      completed: stageNumber >= 3,
+      current: currentStage === '确定为发展对象',
+      pending: stageNumber === 2,
+      time: formatTime(member.确定为发展对象日期)
     },
     {
       id: 4,
-      name: '入党积极分子',
-      description: '党支部确定积极分子',
-      completed: !!member['党支部接收入党积极分子时间'] || ['中共预备党员', '中共党员'].includes(currentStage),
-      current: currentStage === '入党积极分子',
-      pending: ['未开始', '入党申请人'].includes(currentStage),
-      time: member['党支部接收入党积极分子时间']
+      name: '预备党员',
+      description: '支部大会通过，成为预备党员',
+      completed: stageNumber >= 4,
+      current: currentStage === '中共预备党员',
+      pending: stageNumber === 3,
+      time: formatTime(member.支部大会)
     },
     {
       id: 5,
-      name: '预备党员',
-      description: '预备党员考察期',
-      completed: currentStage === '中共党员',
-      current: currentStage === '中共预备党员',
-      pending: ['未开始', '入党申请人', '入党积极分子'].includes(currentStage),
-      time: null
-    },
-    {
-      id: 6,
-      name: '中共党员',
-      description: '转为正式党员',
-      completed: currentStage === '中共党员',
+      name: '正式党员',
+      description: '预备党员转正',
+      completed: stageNumber >= 5,
       current: currentStage === '中共党员',
-      pending: !(currentStage === '中共党员'),
-      time: null
+      pending: stageNumber === 4,
+      time: formatTime(member.转正时间)
     }
   ]
   
   return allStages
 })
 
+// 计算进度百分比
 const progressPercentage = computed(() => {
+  if (loading.value || error.value || stages.value.length === 0) {
+    return 0
+  }
+  
   const completedStages = stages.value.filter(stage => stage.completed).length
   const totalStages = stages.value.length
   return Math.round((completedStages / totalStages) * 100)
 })
 
+// 格式化日期
 const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  
-  // 如果已经是格式化好的 YYYY/MM/DD 格式，直接返回
-  if (typeof dateStr === 'string' && /^\d{4}\/\d{2}\/\d{2}$/.test(dateStr)) {
-    return dateStr
-  }
-  
-  try {
-    // 尝试解析日期
-    let date
-    if (typeof dateStr === 'string') {
-      // 尝试解析 YYYY/MM/DD
-      if (/^\d{4}\/\d{2}\/\d{2}$/.test(dateStr)) {
-        const [year, month, day] = dateStr.split('/')
-        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-      } 
-      // 尝试解析 YYYY-MM-DD
-      else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-        date = new Date(dateStr)
-      }
-      // 尝试解析数字格式 YYYYMMDD
-      else if (/^\d{8}$/.test(dateStr)) {
-        const year = dateStr.substring(0, 4)
-        const month = dateStr.substring(4, 6)
-        const day = dateStr.substring(6, 8)
-        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-      }
-    }
-    
-    if (date && !isNaN(date.getTime())) {
-      return date.toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).replace(/\//g, '/')
-    }
-    
-    return dateStr
-  } catch (e) {
-    return dateStr
-  }
+  const formatted = formatDateStr(dateStr)
+  return formatted || dateStr || ''
 }
 </script>
 
@@ -170,6 +206,7 @@ const formatDate = (dateStr) => {
   padding: 20px;
   border: 1px solid #f0f0f0;
   margin-top: 16px;
+  min-height: 300px;
 }
 
 .progress-header {
@@ -205,6 +242,33 @@ const formatDate = (dateStr) => {
   background: linear-gradient(90deg, #52c41a, #73d13d);
   border-radius: 4px;
   transition: width 0.5s ease;
+}
+
+.loading-state,
+.error-state,
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #8c8c8c;
+}
+
+.error-state {
+  color: #ff4d4f;
+}
+
+.retry-btn {
+  margin-top: 12px;
+  padding: 6px 16px;
+  background: #ff4d4f;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.retry-btn:hover {
+  background: #ff7875;
 }
 
 .stages-list {

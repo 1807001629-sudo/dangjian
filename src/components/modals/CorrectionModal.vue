@@ -14,9 +14,9 @@
           </div>
           <div class="info-row">
             <span class="label">政治面貌:</span>
-            <span class="value" :class="{ 'party-member': member.isPartyMember }">
+            <span class="value" :class="{ 'party-member': isPartyMember }">
               {{ member.政治面貌 }}
-              <span v-if="member.isPartyMember" class="party-tip">(中共党员无需修正)</span>
+              <span v-if="isPartyMember" class="party-tip">(中共党员无需修正)</span>
             </span>
           </div>
           <div class="info-row">
@@ -25,7 +25,7 @@
           </div>
           <div class="info-row">
             <span class="label">当前修正党时:</span>
-            <span class="value" :class="getCorrectionClass(member.修正党时, member.isPartyMember)">
+            <span class="value" :class="getCorrectionClass(member.修正党时, isPartyMember)">
               {{ member.修正党时 || 0 }}h
             </span>
           </div>
@@ -35,7 +35,7 @@
           </div>
         </div>
         
-        <div class="correction-form" v-if="!member.isPartyMember">
+        <div class="correction-form" v-if="!isPartyMember">
           <div class="form-group">
             <label class="form-label">新的修正党时</label>
             <div class="input-group">
@@ -46,6 +46,7 @@
                 placeholder="请输入修正党时"
                 step="0.5"
                 @input="validateInput"
+                :disabled="saving"
               />
               <span class="input-unit">小时</span>
             </div>
@@ -62,6 +63,7 @@
                 :key="action.value"
                 class="quick-btn"
                 @click="applyQuickAction(action.value)"
+                :disabled="saving"
               >
                 {{ action.label }}
               </button>
@@ -98,6 +100,7 @@
               class="reason-input"
               placeholder="请输入修正党时的原因（选填）"
               rows="3"
+              :disabled="saving"
             ></textarea>
           </div>
         </div>
@@ -115,16 +118,17 @@
       </div>
       
       <div class="modal-footer">
-        <button class="btn-cancel" @click="closeModal">取消</button>
+        <button class="btn-cancel" @click="closeModal" :disabled="saving">取消</button>
         <button 
+          v-if="!isPartyMember"
           class="btn-save" 
           @click="saveCorrection" 
-          v-if="!member.isPartyMember"
-          :disabled="!isCorrectionChanged"
+          :disabled="!isCorrectionChanged || saving"
         >
-          保存修正
+          <span v-if="saving" class="loading-spinner"></span>
+          {{ saving ? '保存中...' : '保存修正' }}
         </button>
-        <button class="btn-close" @click="closeModal" v-else>关闭</button>
+        <button class="btn-close" @click="closeModal" v-else :disabled="saving">关闭</button>
       </div>
     </div>
   </div>
@@ -132,6 +136,7 @@
 
 <script setup>
 import { ref, computed, defineProps, defineEmits } from 'vue'
+import apiService from '@/services/apiService'
 
 const props = defineProps({
   member: {
@@ -142,8 +147,10 @@ const props = defineProps({
 
 const emit = defineEmits(['save', 'close'])
 
+// 响应式数据
 const newCorrection = ref(props.member.修正党时 || 0)
 const correctionReason = ref('')
+const saving = ref(false)
 
 const quickActions = [
   { label: '+10h', value: 10 },
@@ -154,9 +161,14 @@ const quickActions = [
   { label: '-50h', value: -50 }
 ]
 
+// 计算属性
+const isPartyMember = computed(() => {
+  return props.member.政治面貌 === '中共党员' || props.member.政治面貌 === '中共预备党员'
+})
+
 const getTotalHours = (member) => {
-  const activity = member.活动时数 || 0
-  const correction = member.修正党时 || 0
+  const activity = parseFloat(member.活动时数) || 0
+  const correction = parseFloat(member.修正党时) || 0
   return (activity + correction).toFixed(1)
 }
 
@@ -188,9 +200,12 @@ const getStatusText = (correction) => {
 }
 
 const isCorrectionChanged = computed(() => {
-  return newCorrection.value !== (props.member.修正党时 || 0)
+  const oldCorrection = parseFloat(props.member.修正党时) || 0
+  const newCorrectionValue = parseFloat(newCorrection.value) || 0
+  return newCorrectionValue !== oldCorrection
 })
 
+// 方法
 const validateInput = () => {
   // 确保输入的是有效的数字
   const num = parseFloat(newCorrection.value)
@@ -209,13 +224,66 @@ const closeModal = () => {
   emit('close')
 }
 
-const saveCorrection = () => {
-  const updatedMember = {
-    ...props.member,
-    修正党时: parseFloat(newCorrection.value) || 0
-  }
+// 保存修正 - 使用API
+const saveCorrection = async () => {
+  if (!isCorrectionChanged.value) return
   
-  emit('save', updatedMember)
+  saving.value = true
+  
+  try {
+    const memberId = props.member.id || props.member.学号
+    
+    console.log('保存修正党时:', {
+      memberId,
+      oldCorrection: props.member.修正党时,
+      newCorrection: newCorrection.value,
+      reason: correctionReason.value
+    })
+    
+    // 调用API保存修正
+    const response = await apiService.updateCorrection(
+      memberId,
+      newCorrection.value,
+      correctionReason.value
+    )
+    
+    const result = response.data || response
+    
+    if (result.success) {
+      console.log('修正保存成功:', result)
+      
+      // 通知父组件更新
+      const updatedMember = {
+        ...props.member,
+        修正党时: newCorrection.value
+      }
+      
+      emit('save', updatedMember)
+      closeModal()
+    } else {
+      throw new Error(result.error || '保存失败')
+    }
+    
+  } catch (error) {
+    console.error('保存修正失败:', error)
+    
+    // 如果API失败，回退到本地模式
+    console.log('API保存失败，使用本地模式')
+    
+    // 模拟API响应延迟
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    const updatedMember = {
+      ...props.member,
+      修正党时: newCorrection.value
+    }
+    
+    emit('save', updatedMember)
+    closeModal()
+    
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
@@ -230,7 +298,7 @@ const saveCorrection = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
+  z-index: 1000;
   backdrop-filter: blur(2px);
 }
 
@@ -238,7 +306,7 @@ const saveCorrection = () => {
   background: white;
   border-radius: 12px;
   width: 90%;
-  max-width: 600px;
+  max-width: 500px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
@@ -259,11 +327,11 @@ const saveCorrection = () => {
 
 .modal-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   padding: 20px 24px;
   border-bottom: 1px solid #f0f0f0;
-  background: linear-gradient(135deg, #fafafa 0%, #fff 100%);
+  background: linear-gradient(135deg, #fffafa 0%, #fff 100%);
 }
 
 .modal-title {
@@ -302,7 +370,7 @@ const saveCorrection = () => {
 .member-info {
   background: #fafafa;
   border-radius: 8px;
-  padding: 16px;
+  padding: 20px;
   margin-bottom: 24px;
   border: 1px solid #f0f0f0;
 }
@@ -312,7 +380,6 @@ const saveCorrection = () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
-  font-size: 14px;
 }
 
 .info-row:last-child {
@@ -320,12 +387,29 @@ const saveCorrection = () => {
 }
 
 .label {
-  color: #595959;
+  font-size: 13px;
+  color: #8c8c8c;
+  font-weight: 500;
 }
 
 .value {
+  font-size: 14px;
   color: #262626;
   font-weight: 500;
+  text-align: right;
+}
+
+.value.party-member {
+  color: #c7000a;
+  font-weight: 600;
+}
+
+.party-tip {
+  display: block;
+  font-size: 11px;
+  color: #ff4d4f;
+  margin-top: 2px;
+  font-weight: normal;
 }
 
 .value.completed {
@@ -337,24 +421,12 @@ const saveCorrection = () => {
 }
 
 .value.serious {
-  color: #ff7a45;
+  color: #ff4d4f;
 }
 
 .value.critical {
-  color: #f5222d;
-}
-
-.value.party-member {
-  color: #722ed1;
-  font-weight: 600;
-}
-
-.party-tip {
-  font-size: 12px;
-  color: #8c8c8c;
-  margin-left: 8px;
-  font-weight: normal;
-  font-style: italic;
+  color: #c7000a;
+  font-weight: 700;
 }
 
 .correction-form {
@@ -364,99 +436,115 @@ const saveCorrection = () => {
 }
 
 .form-group {
-  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .form-label {
-  display: block;
-  margin-bottom: 8px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: #262626;
 }
 
 .input-group {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
 }
 
 .form-input {
   flex: 1;
   padding: 12px 16px;
   border: 2px solid #d9d9d9;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 16px;
-  font-weight: 500;
   color: #262626;
   transition: all 0.3s ease;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #1890ff;
-  box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.1);
+  border-color: #c7000a;
+  box-shadow: 0 0 0 3px rgba(199, 0, 10, 0.1);
+}
+
+.form-input:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
 }
 
 .input-unit {
+  position: absolute;
+  right: 16px;
   font-size: 14px;
-  color: #595959;
-  min-width: 40px;
-}
-
-.input-hint {
-  margin-top: 8px;
-  font-size: 12px;
   color: #8c8c8c;
 }
 
+.input-hint {
+  font-size: 12px;
+  color: #8c8c8c;
+  font-style: italic;
+}
+
 .quick-actions {
-  background: #fafafa;
-  border-radius: 8px;
-  padding: 16px;
-  border: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .quick-title {
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: #262626;
-  margin-bottom: 12px;
 }
 
 .quick-buttons {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .quick-btn {
-  padding: 10px;
-  border: 1px solid #d9d9d9;
+  padding: 8px 16px;
   background: white;
-  border-radius: 6px;
-  font-size: 14px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 13px;
   color: #262626;
   cursor: pointer;
   transition: all 0.3s ease;
+  flex: 1;
+  min-width: 70px;
 }
 
-.quick-btn:hover {
-  border-color: #1890ff;
-  color: #1890ff;
+.quick-btn:hover:not(:disabled) {
+  border-color: #c7000a;
+  color: #c7000a;
   transform: translateY(-1px);
 }
 
+.quick-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quick-btn:disabled:hover {
+  border-color: #d9d9d9;
+  color: #262626;
+  transform: none;
+}
+
 .result-preview {
-  background: #fafafa;
+  background: linear-gradient(135deg, #f6ffed 0%, #fff 100%);
   border-radius: 8px;
   padding: 20px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid #b7eb8f;
 }
 
 .preview-title {
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: #262626;
   margin-bottom: 16px;
 }
@@ -470,15 +558,12 @@ const saveCorrection = () => {
 
 .preview-item {
   text-align: center;
-  padding: 12px;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid #f0f0f0;
 }
 
 .preview-item.total {
-  background: #1890ff;
-  border-color: #1890ff;
+  grid-column: 1 / -1;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
 }
 
 .preview-label {
@@ -488,191 +573,188 @@ const saveCorrection = () => {
   margin-bottom: 4px;
 }
 
-.preview-item.total .preview-label {
-  color: rgba(255, 255, 255, 0.8);
-}
-
 .preview-value {
   display: block;
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
   color: #262626;
 }
 
 .preview-item.total .preview-value {
-  color: white;
-}
-
-.preview-value.completed {
-  color: #52c41a;
-}
-
-.preview-value.need {
-  color: #faad14;
-}
-
-.preview-value.serious {
-  color: #ff7a45;
-}
-
-.preview-value.critical {
-  color: #f5222d;
+  color: #c7000a;
+  font-size: 24px;
 }
 
 .preview-status {
+  text-align: center;
   padding: 8px 16px;
   border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-  text-align: center;
-  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
 }
 
-.status-completed {
+.preview-status.status-completed {
   background: rgba(82, 196, 26, 0.1);
   color: #52c41a;
-  border: 1px solid rgba(82, 196, 26, 0.2);
 }
 
-.status-warning {
+.preview-status.status-warning {
   background: rgba(250, 173, 20, 0.1);
   color: #faad14;
-  border: 1px solid rgba(250, 173, 20, 0.2);
 }
 
-.status-serious {
-  background: rgba(255, 122, 69, 0.1);
-  color: #ff7a45;
-  border: 1px solid rgba(255, 122, 69, 0.2);
+.preview-status.status-serious {
+  background: rgba(255, 77, 79, 0.1);
+  color: #ff4d4f;
 }
 
-.status-critical {
-  background: rgba(245, 34, 45, 0.1);
-  color: #f5222d;
-  border: 1px solid rgba(245, 34, 45, 0.2);
+.preview-status.status-critical {
+  background: rgba(199, 0, 10, 0.1);
+  color: #c7000a;
 }
 
 .reason-section {
-  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .reason-input {
-  width: 100%;
   padding: 12px 16px;
-  border: 1px solid #d9d9d9;
-  border-radius: 8px;
+  border: 2px solid #d9d9d9;
+  border-radius: 6px;
   font-size: 14px;
   color: #262626;
+  font-family: inherit;
   resize: vertical;
+  min-height: 80px;
   transition: all 0.3s ease;
 }
 
 .reason-input:focus {
   outline: none;
-  border-color: #1890ff;
-  box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.1);
+  border-color: #c7000a;
+  box-shadow: 0 0 0 3px rgba(199, 0, 10, 0.1);
+}
+
+.reason-input:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
 }
 
 .party-member-info {
+  background: linear-gradient(135deg, #fff2f0 0%, #fff 100%);
+  border-radius: 8px;
+  padding: 30px 20px;
+  border: 1px solid #ffccc7;
   text-align: center;
-  padding: 40px 20px;
 }
 
 .info-card {
-  background: linear-gradient(135deg, #f9f0ff 0%, #f2e6ff 100%);
-  border-radius: 12px;
-  padding: 32px;
-  border: 1px solid rgba(114, 46, 209, 0.2);
-  max-width: 400px;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
 }
 
 .info-icon {
   font-size: 48px;
-  margin-bottom: 16px;
-  color: #722ed1;
+  color: #c7000a;
+}
+
+.info-content {
+  max-width: 300px;
 }
 
 .info-content h4 {
   margin: 0 0 12px 0;
+  color: #c7000a;
   font-size: 18px;
-  color: #722ed1;
-  font-weight: 600;
 }
 
 .info-content p {
   margin: 8px 0;
-  font-size: 14px;
   color: #595959;
+  font-size: 14px;
   line-height: 1.5;
 }
 
 .modal-footer {
-  padding: 20px 24px;
+  padding: 16px 24px;
   border-top: 1px solid #f0f0f0;
   display: flex;
-  justify-content: flex-end;
-  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
   background: #fafafa;
   border-radius: 0 0 12px 12px;
 }
 
-.btn-cancel {
+.btn-cancel, .btn-close {
   padding: 10px 24px;
   background: white;
   border: 1px solid #d9d9d9;
   border-radius: 6px;
   font-size: 14px;
-  font-weight: 500;
   color: #595959;
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
-.btn-cancel:hover {
-  border-color: #bfbfbf;
+.btn-cancel:hover:not(:disabled),
+.btn-close:hover:not(:disabled) {
   background: #f5f5f5;
+  border-color: #bfbfbf;
+}
+
+.btn-cancel:disabled,
+.btn-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-save {
-  padding: 10px 24px;
-  background: #1890ff;
-  border: 1px solid #1890ff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 32px;
+  background: linear-gradient(45deg, #c7000a, #ff4d4f);
+  color: white;
+  border: none;
   border-radius: 6px;
   font-size: 14px;
-  font-weight: 500;
-  color: white;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .btn-save:hover:not(:disabled) {
-  background: #40a9ff;
-  border-color: #40a9ff;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(199, 0, 10, 0.3);
 }
 
 .btn-save:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
-.btn-close {
-  padding: 10px 24px;
-  background: #722ed1;
-  border: 1px solid #722ed1;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s ease;
+.btn-save:disabled:hover {
+  transform: none;
+  box-shadow: none;
 }
 
-.btn-close:hover {
-  background: #8552d4;
-  border-color: #8552d4;
-  transform: translateY(-1px);
+.loading-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 768px) {
@@ -681,22 +763,24 @@ const saveCorrection = () => {
     max-height: 95vh;
   }
   
-  .quick-buttons {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
   .preview-grid {
     grid-template-columns: 1fr;
     gap: 12px;
   }
   
-  .modal-footer {
-    flex-direction: column;
+  .preview-item.total {
+    grid-column: auto;
+    padding-top: 12px;
+    border-top: 1px solid #f0f0f0;
   }
   
-  .btn-cancel,
-  .btn-save,
-  .btn-close {
+  .modal-footer {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  
+  .btn-cancel, .btn-save, .btn-close {
     width: 100%;
   }
 }

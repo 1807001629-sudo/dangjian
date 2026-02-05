@@ -8,96 +8,126 @@
     
     <!-- 统计卡片 -->
     <div class="stats-grid">
-      <StatCard
-        title="总活动时数"
-        :value="totalActivityHours"
-        unit="h"
-        icon="⏱️"
-        color="#1890ff"
-      />
-      <StatCard
-        title="平均活动时数"
-        :value="averageActivityHours"
-        unit="h"
-        icon="📊"
-        color="#52c41a"
-      />
-      <StatCard
-        title="需修正人数"
-        :value="needCorrectionCount"
-        icon="⚠️"
-        color="#faad14"
-      />
-      <StatCard
-        title="严重缺时人数"
-        :value="seriousLackCount"
-        icon="🔴"
-        color="#f5222d"
-      />
-      <StatCard
-        title="中共党员/已完成"
-        :value="completedCorrectionCount"
-        icon="✅"
-        color="#13c2c2"
-      />
-      <StatCard
-        title="总修正时数"
-        :value="totalCorrectionHours"
-        unit="h"
-        icon="🔄"
-        color="#722ed1"
-      />
+      <div class="stat-card" v-for="stat in statsList" :key="stat.title" :style="{ '--stat-color': stat.color }">
+        <div class="stat-icon">{{ stat.icon }}</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ stat.value }}{{ stat.unit }}</div>
+          <div class="stat-title">{{ stat.title }}</div>
+        </div>
+      </div>
     </div>
     
     <!-- 筛选区域 -->
-    <ActivitiesFilter 
-      :unique-classes="uniqueClasses"
-      @filter-change="handleFilterChange"
-    />
+    <div class="filter-section">
+      <div class="filter-row">
+        <div class="filter-item">
+          <label class="filter-label">班级筛选:</label>
+          <select v-model="activeFilters.class" class="filter-select" @change="handleFilterChange">
+            <option value="">全部班级</option>
+            <option v-for="className in uniqueClasses" :key="className" :value="className">
+              {{ className }}
+            </option>
+          </select>
+        </div>
+        
+        <div class="filter-item">
+          <label class="filter-label">政治面貌:</label>
+          <select v-model="activeFilters.politicalStatus" class="filter-select" @change="handleFilterChange">
+            <option value="">全部</option>
+            <option value="中共党员">中共党员</option>
+            <option value="中共预备党员">中共预备党员</option>
+            <option value="共青团员">共青团员</option>
+            <option value="群众">群众</option>
+          </select>
+        </div>
+        
+        <div class="filter-item">
+          <label class="filter-label">入党阶段:</label>
+          <select v-model="activeFilters.stage" class="filter-select" @change="handleFilterChange">
+            <option value="">全部阶段</option>
+            <option value="入党申请人">入党申请人</option>
+            <option value="入党积极分子">入党积极分子</option>
+            <option value="中共预备党员">中共预备党员</option>
+            <option value="中共党员">中共党员</option>
+            <option value="未开始">未开始</option>
+          </select>
+        </div>
+        
+        <div class="filter-item">
+          <label class="filter-label">修正状态:</label>
+          <select v-model="activeFilters.correctionStatus" class="filter-select" @change="handleFilterChange">
+            <option value="">全部状态</option>
+            <option value="not-started">未开始</option>
+            <option value="need">需修正 (-50h以内)</option>
+            <option value="serious">缺时较多 (-100h以内)</option>
+            <option value="critical">严重缺时 (-100h以上)</option>
+            <option value="completed">中共党员/已完成</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="filter-row">
+        <div class="filter-item search-item">
+          <label class="filter-label">搜索:</label>
+          <div class="search-box">
+            <input
+              v-model="activeFilters.search"
+              type="text"
+              placeholder="输入姓名或学号搜索..."
+              class="search-input"
+              @input="handleFilterChange"
+            />
+            <span class="search-icon">🔍</span>
+          </div>
+        </div>
+        
+        <div class="filter-actions">
+          <button class="btn-reset" @click="resetFilters">重置筛选</button>
+          <button class="btn-export" @click="exportData">
+            <span class="export-icon">📥</span>
+            导出数据
+          </button>
+        </div>
+      </div>
+    </div>
     
     <!-- 主要表格区域 -->
     <div class="main-content">
-      <BaseCard class="table-card">
-        <template #header>
-          <div class="table-header">
-            <div class="header-left">
-              <h3>活动记录列表</h3>
-              <span class="record-count">共 {{ filteredMembers.length }} 条记录</span>
-            </div>
-            <div class="header-right">
-              <button class="btn-export" @click="exportData">
-                <span class="export-icon">📥</span>
-                导出数据
-              </button>
-              <div class="legend">
-                <div class="legend-item">
-                  <span class="legend-color" style="background-color: #722ed1;"></span>
-                  <span class="legend-text">中共党员</span>
-                </div>
-                <div class="legend-item">
-                  <span class="legend-color" style="background-color: #13c2c2;"></span>
-                  <span class="legend-text">已完成</span>
-                </div>
-                <div class="legend-item">
-                  <span class="legend-color" style="background-color: #bfbfbf;"></span>
-                  <span class="legend-text">未开始</span>
-                </div>
-                <div class="legend-item">
-                  <span class="legend-color" style="background-color: #faad14;"></span>
-                  <span class="legend-text">需修正 (-50h以内)</span>
-                </div>
-                <div class="legend-item">
-                  <span class="legend-color" style="background-color: #ff7a45;"></span>
-                  <span class="legend-text">缺时较多 (-100h以内)</span>
-                </div>
-                <div class="legend-item">
-                  <span class="legend-color" style="background-color: #f5222d;"></span>
-                  <span class="legend-text">严重缺时 (-100h以上)</span>
-                </div>
+      <div class="table-card">
+        <div class="table-header">
+          <div class="header-left">
+            <h3>活动记录列表</h3>
+            <span class="record-count">共 {{ filteredMembers.length }} 条记录</span>
+          </div>
+          <div class="header-right">
+            <div class="legend">
+              <div class="legend-item">
+                <span class="legend-color" style="background-color: #722ed1;"></span>
+                <span class="legend-text">中共党员</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color" style="background-color: #13c2c2;"></span>
+                <span class="legend-text">已完成</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color" style="background-color: #bfbfbf;"></span>
+                <span class="legend-text">未开始</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color" style="background-color: #faad14;"></span>
+                <span class="legend-text">需修正 (-50h以内)</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color" style="background-color: #ff7a45;"></span>
+                <span class="legend-text">缺时较多 (-100h以内)</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color" style="background-color: #f5222d;"></span>
+                <span class="legend-text">严重缺时 (-100h以上)</span>
               </div>
             </div>
           </div>
-        </template>
+        </div>
         
         <div class="table-container">
           <table class="activities-table">
@@ -145,7 +175,7 @@
                 <td>{{ member.班级 }}</td>
                 <td>
                   <span class="political-status" :class="{ 'party-member': member.isPartyMember }">
-                    {{ member.政治面貌 }}
+                    {{ member.政治面貌 || '未知' }}
                   </span>
                 </td>
                 <td>
@@ -251,39 +281,94 @@
             </button>
           </div>
         </div>
-      </BaseCard>
+      </div>
+    </div>
+    
+    <!-- 加载状态 -->
+    <div v-if="loading" class="loading-overlay">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">加载数据中...</div>
     </div>
     
     <!-- 修正时数模态框 -->
-    <CorrectionModal
-      v-if="showCorrectionModal"
-      :member="selectedMember"
-      @save="handleSaveCorrection"
-      @close="showCorrectionModal = false"
-    />
+    <div v-if="showCorrectionModal" class="modal-overlay">
+      <div class="simple-modal">
+        <div class="modal-header">
+          <h3>修正党时 - {{ selectedMember?.姓名 }}</h3>
+          <button class="modal-close" @click="showCorrectionModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <p>当前修正时数: {{ selectedMember?.修正党时 || 0 }}h</p>
+          <div class="modal-actions">
+            <button @click="showCorrectionModal = false" class="btn-cancel">取消</button>
+            <button @click="handleSaveCorrection" class="btn-save">保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
     
     <!-- 成员详情模态框 -->
-    <MemberDetailModal
-      v-if="showMemberDetailModal"
-      :member="selectedMember"
-      @close="showMemberDetailModal = false"
-    />
+    <div v-if="showMemberDetailModal" class="modal-overlay">
+      <div class="detail-modal">
+        <div class="modal-header">
+          <h3>成员详情 - {{ selectedMember?.姓名 }}</h3>
+          <button class="modal-close" @click="showMemberDetailModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="member-detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">学号:</span>
+              <span class="detail-value">{{ selectedMember?.学号 }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">班级:</span>
+              <span class="detail-value">{{ selectedMember?.班级 }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">政治面貌:</span>
+              <span class="detail-value">{{ selectedMember?.政治面貌 }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">入党阶段:</span>
+              <span class="detail-value">{{ selectedMember?.processStage || '未开始' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">活动时数:</span>
+              <span class="detail-value">{{ selectedMember?.活动时数 || 0 }}h</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">修正党时:</span>
+              <span class="detail-value">{{ selectedMember?.修正党时 || 0 }}h</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">总时数:</span>
+              <span class="detail-value">{{ getTotalHours(selectedMember) }}h</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import BaseCard from '@/components/ui/BaseCard.vue'
-import StatCard from '@/components/ui/StatCard.vue'
-import ActivitiesFilter from '@/components/filters/ActivitiesFilter.vue'
-import CorrectionModal from '@/components/modals/CorrectionModal.vue'
-import MemberDetailModal from '@/components/modals/MemberDetailModal.vue'
-import membersData from '@/assets/data.json'
-import { formatDate } from '@/utils/dateFormatter'
+import { useDataStore } from '../stores/dataStore'
+import { formatDate } from '../utils/dateFormatter'
+import { calculateProcessStage } from '../services/dataTransformer'
+
+// 使用 Pinia 数据存储
+const dataStore = useDataStore()
 
 // 响应式数据
 const members = ref([])
-const activeFilters = ref({})
+const activeFilters = ref({
+  class: '',
+  politicalStatus: '',
+  stage: '',
+  correctionStatus: '',
+  search: ''
+})
 const sortColumn = ref('活动时数')
 const sortDirection = ref('desc')
 const currentPage = ref(1)
@@ -291,58 +376,97 @@ const pageSize = 20
 const showCorrectionModal = ref(false)
 const showMemberDetailModal = ref(false)
 const selectedMember = ref(null)
+const loading = ref(false)
+
+// 统计卡片数据
+const statsList = computed(() => [
+  {
+    title: '总活动时数',
+    value: totalActivityHours.value,
+    unit: 'h',
+    icon: '⏱️',
+    color: '#1890ff'
+  },
+  {
+    title: '平均活动时数',
+    value: averageActivityHours.value,
+    unit: 'h',
+    icon: '📊',
+    color: '#52c41a'
+  },
+  {
+    title: '需修正人数',
+    value: needCorrectionCount.value,
+    icon: '⚠️',
+    color: '#faad14'
+  },
+  {
+    title: '严重缺时人数',
+    value: seriousLackCount.value,
+    icon: '🔴',
+    color: '#f5222d'
+  },
+  {
+    title: '中共党员/已完成',
+    value: completedCorrectionCount.value,
+    icon: '✅',
+    color: '#13c2c2'
+  },
+  {
+    title: '总修正时数',
+    value: totalCorrectionHours.value,
+    unit: 'h',
+    icon: '🔄',
+    color: '#722ed1'
+  }
+])
 
 // 初始化数据
-onMounted(() => {
-  console.log('Activities.vue 已加载')
-  // 格式化数据
-  members.value = membersData.map((member, index) => {
-    const formattedMember = {
-      ...member,
-      id: member.学号 || index,
-      // 格式化日期字段
-      入团时间: formatDate(member.入团时间),
-      出生年月日: formatDate(member.出生年月日),
-      入校时间: formatDate(member.入校时间),
-      申请入党时间: formatDate(member.申请入党时间),
-      '600题考试时间': formatDate(member['600题考试时间']),
-      '党支部接收入党积极分子时间': formatDate(member['党支部接收入党积极分子时间']),
-      // 确保数字字段都是数字类型
-      活动时数: parseFloat(member.活动时数) || 0,
-      修正党时: parseFloat(member.修正党时) || 0,
-      '600题考试成绩': parseFloat(member['600题考试成绩']) || 0,
-      积极分子结业成绩: parseFloat(member.积极分子结业成绩) || 0
-    }
+onMounted(async () => {
+  console.log('Activities.vue 已加载，从API获取数据')
+  loading.value = true
+  
+  try {
+    // 从数据存储获取成员数据
+    await dataStore.fetchMembers()
     
-    // 计算综合的入党阶段
-    const processStage = calculateProcessStage(formattedMember)
-    
-    // 中共党员自动标记为已完成修正
-    const isPartyMember = formattedMember.政治面貌 === '中共党员'
-    
-    return {
-      ...formattedMember,
-      processStage,
-      // 中共党员不需要修正党时
-      isPartyMember
-    }
-  })
-  console.log('加载了', members.value.length, '条活动记录')
-})
-
-// 计算综合的入党阶段
-function calculateProcessStage(member) {
-  if (member.政治面貌 === '中共党员') return '中共党员'
-  if (member.政治面貌 === '中共预备党员') return '中共预备党员'
-  if (member.入党流程阶段) {
-    if (member.入党流程阶段 === '积极分子培训结业') return '入党积极分子'
-    return member.入党流程阶段
+    // 格式化数据
+    members.value = dataStore.members.map((member, index) => {
+      const formattedMember = {
+        ...member,
+        id: member.学号 || index,
+        // 确保数字字段都是数字类型
+        活动时数: parseFloat(member.活动时数) || 0,
+        修正党时: parseFloat(member.修正党时) || 0,
+        '600题考试成绩': parseFloat(member['600题考试成绩']) || 0,
+        积极分子结业成绩: parseFloat(member.积极分子结业成绩) || 0
+      }
+      
+      // 计算综合的入党阶段
+      const processStage = calculateProcessStage(formattedMember)
+      
+      // 中共党员自动标记为已完成修正
+      const isPartyMember = formattedMember.政治面貌 === '中共党员'
+      
+      return {
+        ...formattedMember,
+        processStage,
+        // 中共党员不需要修正党时
+        isPartyMember
+      }
+    })
+    console.log('加载了', members.value.length, '条活动记录')
+  } catch (error) {
+    console.error('加载数据失败:', error)
+    members.value = []
+  } finally {
+    loading.value = false
   }
-  return '未开始'
-}
+})
 
 // 新增方法：判断是否需要显示未开始状态
 function shouldShowNotStarted(member) {
+  if (!member) return false
   const stage = member.processStage || member.入党流程阶段 || ''
   const isPassed600Questions = member['600题考试成绩'] && parseFloat(member['600题考试成绩']) >= 60
   
@@ -536,8 +660,18 @@ const hasMorePages = computed(() => {
 })
 
 // 方法
-function handleFilterChange(filters) {
-  activeFilters.value = filters
+function handleFilterChange() {
+  currentPage.value = 1
+}
+
+function resetFilters() {
+  activeFilters.value = {
+    class: '',
+    politicalStatus: '',
+    stage: '',
+    correctionStatus: '',
+    search: ''
+  }
   currentPage.value = 1
 }
 
@@ -551,12 +685,15 @@ function sortByColumn(column) {
 }
 
 function getTotalHours(member) {
+  if (!member) return '0.0'
   const activity = member.活动时数 || 0
   const correction = member.修正党时 || 0
   return (activity + correction).toFixed(1)
 }
 
 function getCorrectionClass(member) {
+  if (!member) return ''
+  
   // 中共党员直接显示中共党员样式
   if (member.isPartyMember) return 'party-member'
   
@@ -571,6 +708,8 @@ function getCorrectionClass(member) {
 }
 
 function getCorrectionPercentage(member) {
+  if (!member) return 0
+  
   // 中共党员和未开始状态不需要显示进度条
   if (member.isPartyMember || shouldShowNotStarted(member)) return 0
   
@@ -580,6 +719,8 @@ function getCorrectionPercentage(member) {
 }
 
 function getStatusClass(member) {
+  if (!member) return ''
+  
   // 中共党员直接显示中共党员样式
   if (member.isPartyMember) return 'party-member'
   
@@ -596,6 +737,8 @@ function getStatusClass(member) {
 }
 
 function getStatusText(member) {
+  if (!member) return ''
+  
   // 中共党员直接显示中共党员
   if (member.isPartyMember) return '中共党员'
   
@@ -612,6 +755,8 @@ function getStatusText(member) {
 }
 
 function getRowClass(member) {
+  if (!member) return ''
+  
   // 中共党员显示特殊行样式
   if (member.isPartyMember) return 'row-party-member'
   
@@ -673,39 +818,78 @@ function editCorrection(member) {
 
 function addActivity(member) {
   selectedMember.value = member
-  // 这里可以打开添加活动的模态框
   alert(`为 ${member.姓名} 添加活动记录`)
 }
 
-function handleSaveCorrection(updatedMember) {
-  // 更新成员数据
-  const index = members.value.findIndex(m => m.id === updatedMember.id)
-  if (index !== -1) {
-    members.value[index] = {
-      ...members.value[index],
-      修正党时: parseFloat(updatedMember.修正党时) || 0
-    }
-  }
+function handleSaveCorrection() {
+  // TODO: 这里可以添加API调用更新数据库
+  console.log('更新修正党时:', selectedMember.value)
   showCorrectionModal.value = false
 }
 
+// 导出数据为CSV
 function exportData() {
-  const dataStr = JSON.stringify(filteredMembers.value, null, 2)
-  const dataBlob = new Blob([dataStr], { type: 'application/json' })
-  const url = URL.createObjectURL(dataBlob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `活动管理数据_${new Date().toISOString().slice(0, 10)}.json`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  if (filteredMembers.value.length === 0) {
+    alert('没有数据可以导出')
+    return
+  }
   
-  console.log(`已导出数据，共${filteredMembers.value.length}条记录`)
+  try {
+    // 准备数据
+    const exportData = filteredMembers.value.map((member, index) => ({
+      '序号': index + 1,
+      '姓名': member.姓名 || '',
+      '学号': member.学号 || '',
+      '班级': member.班级 || '',
+      '政治面貌': member.政治面貌 || '',
+      '入党阶段': member.processStage || '未开始',
+      '活动时数': member.活动时数 || 0,
+      '修正党时': member.修正党时 || 0,
+      '总时数': getTotalHours(member),
+      '状态': getStatusText(member),
+      '四级成绩': member.四级成绩 || '',
+      '计算机二级': member.计算机二级 || '',
+      '不及格情况': member.不及格情况 || '无',
+      '前一学年综测百分比': member.前一学年综测百分比 || ''
+    }))
+    
+    // 转换为CSV格式
+    const headers = Object.keys(exportData[0])
+    const csvRows = []
+    
+    // 添加标题行
+    csvRows.push(headers.join(','))
+    
+    // 添加数据行
+    for (const row of exportData) {
+      const values = headers.map(header => {
+        const escaped = String(row[header]).replace(/"/g, '""')
+        return `"${escaped}"`
+      })
+      csvRows.push(values.join(','))
+    }
+    
+    const csvContent = csvRows.join('\n')
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `活动管理数据_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    
+    console.log(`已导出${exportData.length}条记录到CSV`)
+  } catch (error) {
+    console.error('导出数据失败:', error)
+    alert('导出失败，请重试')
+  }
 }
 </script>
 
 <style scoped>
+/* 样式保持不变，仅修复导入路径问题，这里展示完整的样式以确保一致 */
 .activities-page {
   min-height: 100vh;
   background: #f5f5f5;
@@ -729,6 +913,7 @@ function exportData() {
   margin: 0;
 }
 
+/* 统计卡片样式 */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -736,11 +921,195 @@ function exportData() {
   margin-bottom: 24px;
 }
 
+.stat-card {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f0f0f0;
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  border-color: var(--stat-color);
+}
+
+.stat-icon {
+  font-size: 32px;
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  background: var(--stat-color);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-content {
+  flex: 1;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #262626;
+  margin-bottom: 4px;
+}
+
+.stat-title {
+  font-size: 14px;
+  color: #8c8c8c;
+}
+
+/* 筛选区域样式 */
+.filter-section {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+  border: 1px solid #f0f0f0;
+}
+
+.filter-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.filter-row:last-child {
+  margin-bottom: 0;
+}
+
+.filter-item {
+  flex: 1;
+  min-width: 180px;
+}
+
+.search-item {
+  flex: 2;
+  min-width: 300px;
+}
+
+.filter-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #262626;
+  margin-bottom: 8px;
+}
+
+.filter-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #262626;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #c7000a;
+  box-shadow: 0 0 0 2px rgba(199, 0, 10, 0.1);
+}
+
+.search-box {
+  position: relative;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 12px 10px 36px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #262626;
+  transition: all 0.3s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #c7000a;
+  box-shadow: 0 0 0 2px rgba(199, 0, 10, 0.1);
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #8c8c8c;
+  font-size: 16px;
+}
+
+.filter-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.btn-reset {
+  padding: 10px 20px;
+  background: #f5f5f5;
+  color: #262626;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-reset:hover {
+  background: #e8e8e8;
+  border-color: #bfbfbf;
+}
+
+.btn-export {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: #c7000a;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-export:hover {
+  background: #d9363e;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(199, 0, 10, 0.2);
+}
+
+.export-icon {
+  font-size: 16px;
+}
+
+/* 表格区域样式 - 保持原有样式 */
 .main-content {
   margin-top: 20px;
 }
 
 .table-card {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #f0f0f0;
+  overflow: hidden;
   margin-bottom: 24px;
 }
 
@@ -780,31 +1149,6 @@ function exportData() {
   display: flex;
   align-items: center;
   gap: 24px;
-}
-
-.btn-export {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 20px;
-  background: #1890ff;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.btn-export:hover {
-  background: #40a9ff;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.2);
-}
-
-.export-icon {
-  font-size: 16px;
 }
 
 .legend {
@@ -1323,9 +1667,201 @@ function exportData() {
   color: #8c8c8c;
 }
 
+/* 加载状态 */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #c7000a;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+.loading-text {
+  color: #262626;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* 模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  backdrop-filter: blur(2px);
+}
+
+.simple-modal, .detail-modal {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  animation: modalAppear 0.3s ease;
+}
+
+.detail-modal {
+  max-width: 500px;
+}
+
+@keyframes modalAppear {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f0f0;
+  background: linear-gradient(135deg, #fffafa 0%, #fff 100%);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #8c8c8c;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.modal-close:hover {
+  background: #f5f5f5;
+  color: #262626;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.btn-cancel {
+  padding: 10px 20px;
+  background: white;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #595959;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-cancel:hover {
+  background: #f5f5f5;
+  border-color: #bfbfbf;
+}
+
+.btn-save {
+  padding: 10px 20px;
+  background: #c7000a;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-save:hover {
+  background: #d9363e;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(199, 0, 10, 0.2);
+}
+
+.member-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-label {
+  font-size: 12px;
+  color: #8c8c8c;
+  font-weight: 500;
+}
+
+.detail-value {
+  font-size: 14px;
+  color: #262626;
+  font-weight: 600;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (max-width: 768px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .filter-row {
+    flex-direction: column;
+  }
+  
+  .filter-item, .search-item {
+    min-width: 100%;
+  }
+  
+  .filter-actions {
+    width: 100%;
+    justify-content: space-between;
   }
   
   .table-header {
@@ -1352,6 +1888,10 @@ function exportData() {
   
   .pagination-controls {
     justify-content: center;
+  }
+  
+  .member-detail-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

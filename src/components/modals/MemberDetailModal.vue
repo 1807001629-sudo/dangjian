@@ -1,3 +1,4 @@
+<!-- src/components/modals/MemberDetailModal.vue -->
 <template>
   <div class="modal-overlay" @click.self="closeModal">
     <div class="member-detail-modal">
@@ -87,15 +88,15 @@
             </div>
             <div class="info-item">
               <span class="info-label">申请时年龄：</span>
-              <span class="info-value">{{ member['递交入党申请书年龄（岁）'] || '-' }} 岁</span>
+              <span class="info-value">{{ formatScore(member['递交入党申请书年龄（岁）']) }} 岁</span>
             </div>
             <div class="info-item">
               <span class="info-label">活动时数：</span>
-              <span class="info-value">{{ member.活动时数 || 0 }} 小时</span>
+              <span class="info-value">{{ formatScore(member.活动时数) }} 小时</span>
             </div>
             <div class="info-item">
               <span class="info-label">修正党时：</span>
-              <span class="info-value">{{ member.修正党时 || 0 }} 小时</span>
+              <span class="info-value">{{ formatScore(member.修正党时) }} 小时</span>
             </div>
           </div>
         </div>
@@ -111,7 +112,7 @@
               <span class="info-label">600题考试成绩：</span>
               <div class="info-value">
                 <span v-if="shouldShow600Pass(member)" class="score-pass compact">通过</span>
-                <span v-else>{{ member['600题考试成绩'] || '-' }}</span>
+                <span v-else>{{ formatScore(member['600题考试成绩']) }}</span>
               </div>
             </div>
             <div class="info-item">
@@ -120,23 +121,23 @@
             </div>
             <div class="info-item">
               <span class="info-label">积极分子结业成绩：</span>
-              <span class="info-value">{{ member.积极分子结业成绩 || '-' }}</span>
+              <span class="info-value">{{ formatScore(member.积极分子结业成绩) }}</span>
             </div>
             <div class="info-item">
               <span class="info-label">四级成绩：</span>
-              <span class="info-value">{{ member.四级成绩 || '-' }}</span>
+              <span class="info-value">{{ formatScore(member.四级成绩) }}</span>
             </div>
             <div class="info-item">
               <span class="info-label">计算机二级：</span>
-              <span class="info-value">{{ member.计算机二级 || '-' }}</span>
+              <span class="info-value">{{ formatScore(member.计算机二级) }}</span>
             </div>
             <div class="info-item">
               <span class="info-label">不及格情况：</span>
-              <span class="info-value">{{ member.不及格情况 || '无' }}</span>
+              <span class="info-value">{{ formatFailure(member.不及格情况) }}</span>
             </div>
             <div class="info-item">
               <span class="info-label">前一学年综测百分比：</span>
-              <span class="info-value">{{ member.前一学年综测百分比 || '-' }}</span>
+              <span class="info-value">{{ formatPercentage(member.前一学年综测百分比) }}</span>
             </div>
           </div>
         </div>
@@ -173,12 +174,12 @@
         <!-- 统计信息 -->
         <div class="summary-stats">
           <div class="stat-card">
-            <div class="stat-value">{{ member.活动时数 || 0 }}</div>
+            <div class="stat-value">{{ formatScore(member.活动时数) }}</div>
             <div class="stat-label">活动时数</div>
           </div>
           <div class="stat-card">
             <div class="stat-value" :class="getCorrectionClass(member.修正党时)">
-              {{ member.修正党时 || 0 }}
+              {{ formatScore(member.修正党时) }}
             </div>
             <div class="stat-label">修正党时</div>
           </div>
@@ -198,6 +199,22 @@
 
 <script setup>
 import { defineProps, defineEmits } from 'vue'
+import { 
+  getInitials, 
+  getAvatarColor, 
+  formatScore, 
+  formatPercentage, 
+  formatFailure,
+  getTotalHours,
+  getCorrectionClass
+} from '@/utils/memberUtils'
+import { formatDisplayDate } from '@/utils/dateFormatter'
+import { 
+  getProcessStageText,
+  getProcessStageClass,
+  getPoliticalStatusClass,
+  shouldShow600Pass
+} from '@/services/dataTransformer'
 
 const props = defineProps({
   member: {
@@ -208,109 +225,8 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-// 获取姓名后两个字作为头像
-const getInitials = (name) => {
-  if (!name || name.length < 2) return name || '??'
-  return name.slice(-2) // 取最后两个字
-}
-
-const getAvatarColor = (name) => {
-  const colors = [
-    '#c7000a', '#ff4d4f', '#ff7a45', '#ffa940', '#faad14',
-    '#a0d911', '#52c41a', '#13c2c2', '#1890ff', '#2f54eb',
-    '#722ed1', '#eb2f96'
-  ]
-  const index = name ? name.charCodeAt(0) % colors.length : 0
-  return colors[index]
-}
-
-// 政治面貌样式
-const getPoliticalStatusClass = (status) => {
-  const classes = {
-    '中共党员': 'status-party',
-    '中共预备党员': 'status-candidate',
-    '共青团员': 'status-youth',
-    '群众': 'status-masses'
-  }
-  return classes[status] || 'status-masses'
-}
-
-// 入党阶段处理逻辑
-const getProcessStageText = (member) => {
-  // 如果政治面貌是中共预备党员或中共党员，直接显示政治面貌
-  if (member.政治面貌 === '中共预备党员' || member.政治面貌 === '中共党员') {
-    return member.政治面貌
-  }
-  // 否则显示入党流程阶段
-  return member.入党流程阶段 || '未开始'
-}
-
-const getProcessStageClass = (member) => {
-  // 如果政治面貌是中共预备党员或中共党员，使用政治面貌样式
-  if (member.政治面貌 === '中共党员') {
-    return 'stage-party'
-  }
-  if (member.政治面貌 === '中共预备党员') {
-    return 'stage-candidate'
-  }
-  
-  // 否则根据入党流程阶段显示样式
-  const stage = member.入党流程阶段
-  const classes = {
-    '入党申请人': 'stage-applicant',
-    '通过600题': 'stage-passed600',
-    '入党积极分子': 'stage-activist',
-    '积极分子培训结业': 'stage-graduate',
-    '未开始': 'stage-none'
-  }
-  return classes[stage] || 'stage-none'
-}
-
-// 判断是否应该显示600题"通过"
-const shouldShow600Pass = (member) => {
-  const advancedStages = ['入党积极分子', '积极分子培训结业', '中共预备党员', '中共党员']
-  
-  // 如果政治面貌是中共预备党员或中共党员，直接显示"通过"
-  if (member.政治面貌 === '中共预备党员' || member.政治面貌 === '中共党员') {
-    return true
-  }
-  
-  // 或者入党流程阶段是积极分子及以上
-  return advancedStages.includes(member.入党流程阶段)
-}
-
-// 格式化日期
-const formatDate = (date) => {
-  if (!date || date === 'nan' || date === '') return '-'
-  try {
-    // 尝试解析日期格式
-    const dateObj = new Date(date)
-    if (isNaN(dateObj.getTime())) return date // 如果不是有效日期，返回原字符串
-    
-    return dateObj.toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    })
-  } catch {
-    return date
-  }
-}
-
-// 计算总时数
-const getTotalHours = (member) => {
-  const activity = parseFloat(member.活动时数) || 0
-  const correction = parseFloat(member.修正党时) || 0
-  return (activity + correction).toFixed(1)
-}
-
-const getCorrectionClass = (correction) => {
-  const value = correction || 0
-  if (value >= 0) return 'positive'
-  if (value > -50) return 'warning'
-  if (value > -100) return 'serious'
-  return 'critical'
-}
+// 格式化日期 - 使用统一的日期格式化工具
+const formatDate = formatDisplayDate
 
 const closeModal = () => {
   emit('close')
@@ -318,6 +234,7 @@ const closeModal = () => {
 </script>
 
 <style scoped>
+/* 原有的样式保持不变 */
 .modal-overlay {
   position: fixed;
   top: 0;

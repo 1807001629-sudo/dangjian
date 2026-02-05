@@ -1,42 +1,62 @@
 <template>
-  <div class="app">
-    <Navbar />
-    <div class="app-layout">
-      <Sidebar :total-count="totalMembers" />
-      <main class="app-main">
-        <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
-      </main>
+  <div id="app">
+    <!-- 简单的导航 -->
+    <div v-if="showNav" class="simple-nav">
+      <h1 style="color: #c7000a; margin-bottom: 20px;">党建管理系统</h1>
+      <div class="nav-buttons">
+        <button @click="goToPage('/members')" :class="{ active: currentRoute === '/members' }">
+          人员管理
+        </button>
+        <button @click="goToPage('/activities')" :class="{ active: currentRoute === '/activities' }">
+          活动管理
+        </button>
+        <button @click="goToPage('/process')" :class="{ active: currentRoute === '/process' }">
+          流程跟踪
+        </button>
+      </div>
+    </div>
+    
+    <!-- 路由视图 -->
+    <div class="content">
+      <router-view></router-view>
+    </div>
+    
+    <!-- 加载状态 -->
+    <div v-if="loading" class="loading-overlay">
+      <div class="loading-spinner"></div>
+      <div>加载中...</div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import Navbar from '@/components/layout/Navbar.vue';
-import Sidebar from '@/components/layout/Sidebar.vue';
-import rawData from '@/assets/data.json';
+import { ref, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 
-console.log('App.vue 加载');
+const router = useRouter()
+const route = useRoute()
+const loading = ref(true)
+const showNav = ref(true)
 
-const membersData = ref([]);
+const currentRoute = computed(() => {
+  return route.path
+})
 
-const totalMembers = computed(() => {
-  return membersData.value.length || 0;
-});
+const goToPage = (path) => {
+  loading.value = true
+  router.push(path).finally(() => {
+    setTimeout(() => {
+      loading.value = false
+    }, 300)
+  })
+}
 
 onMounted(() => {
-  console.log('App.vue mounted');
-  try {
-    membersData.value = Array.isArray(rawData) ? rawData : [];
-    console.log('App 数据加载完成，共', membersData.value.length, '条记录');
-  } catch (error) {
-    console.error('App 数据加载错误:', error);
-  }
-});
+  console.log('App.vue已挂载')
+  setTimeout(() => {
+    loading.value = false
+  }, 1000)
+})
 </script>
 
 <style>
@@ -47,106 +67,97 @@ onMounted(() => {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 
-               'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.5715;
-  color: #262626;
-  background: #fafafa;
-  overflow-x: hidden;
+  font-family: 'Microsoft YaHei', sans-serif;
+  background: #f5f5f5;
 }
 
-.app {
+#app {
   min-height: 100vh;
+  background: #f5f5f5;
+}
+
+.simple-nav {
+  background: white;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  text-align: center;
+}
+
+.nav-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.nav-buttons button {
+  padding: 10px 30px;
+  border: 2px solid #d9d9d9;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.3s;
+  color: #595959;
+}
+
+.nav-buttons button:hover {
+  border-color: #c7000a;
+  color: #c7000a;
+  background: #fffafa;
+}
+
+.nav-buttons button.active {
+  border-color: #c7000a;
+  background: #c7000a;
+  color: white;
+}
+
+.content {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
   display: flex;
   flex-direction: column;
-}
-
-.app-layout {
-  display: flex;
-  flex: 1;
-  min-height: calc(100vh - 64px);
-  position: relative;
-}
-
-/* 关键修改：简化侧边栏和主内容的交互 */
-.sidebar {
-  width: 250px;
-  height: calc(100vh - 64px);
-  position: fixed;
-  left: 0;
-  top: 64px;
-  background: white;
-  border-right: 1px solid #f0f0f0;
+  justify-content: center;
+  align-items: center;
   z-index: 1000;
 }
 
-/* 主要内容区域 - 关键修改 */
-.app-main {
-  flex: 1;
-  margin-left: 250px; /* 与侧边栏宽度一致 */
-  min-width: 0; /* 防止内容溢出 */
-  transition: margin-left 0.3s ease;
-  padding: 20px;
-  background: #fafafa;
-  min-height: calc(100vh - 64px);
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #c7000a;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
 }
 
-/* 侧边栏收起时的样式 */
-.sidebar.collapsed ~ .app-main {
-  margin-left: 60px;
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
-/* 路由过渡动画 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-/* 滚动条样式 */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f0f0f0;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #bfbfbf;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #8c8c8c;
-}
-
-/* 响应式设计 */
+/* 移动端适配 */
 @media (max-width: 768px) {
-  .sidebar {
-    transform: translateX(-100%);
-    width: 250px;
+  .nav-buttons {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
   }
   
-  .sidebar.collapsed {
-    transform: translateX(0);
-    width: 60px;
-  }
-  
-  .app-main {
-    margin-left: 0 !important;
-    width: 100%;
-  }
-  
-  .sidebar.collapsed ~ .app-main {
-    margin-left: 60px !important;
+  .nav-buttons button {
+    width: 200px;
   }
 }
 </style>
