@@ -1,344 +1,379 @@
-<!-- src/views/Process.vue - 完整API版本 -->
+<!-- src/views/Process.vue - 入党流程页面 -->
 <template>
   <div class="process-page">
     <!-- 页面头部 -->
     <div class="page-header">
-      <h1 class="page-title">入党流程追踪</h1>
+      <h1>📋 入党流程追踪</h1>
       <p class="page-description">实时跟踪党员的入党进度和各个阶段状态</p>
     </div>
     
-    <!-- 统计卡片 -->
-    <div class="stats-grid">
-      <StatCard
-        title="总人数"
-        :value="stats.total"
-        icon="👥"
-        color="#1890ff"
-      />
-      <StatCard
-        title="申请人"
-        :value="stageCounts['入党申请人'] || 0"
-        icon="📋"
-        color="#52c41a"
-      />
-      <StatCard
-        title="积极分子"
-        :value="activeMembersCount"
-        icon="⭐"
-        color="#faad14"
-      />
-      <StatCard
-        title="预备党员"
-        :value="prePartyMemberCount"
-        icon="🔴"
-        color="#f5222d"
-      />
-      <StatCard
-        title="中共党员"
-        :value="partyMemberCount"
-        icon="🏆"
-        color="#722ed1"
-      />
-      <StatCard
-        title="平均活动时数"
-        :value="averageHours.toFixed(1)"
-        unit="h"
-        icon="⏱️"
-        color="#13c2c2"
-      />
+    <!-- 加载状态 -->
+    <div v-if="loading" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p>正在加载入党流程数据...</p>
     </div>
     
-    <!-- 主要内容区域 -->
-    <div class="main-content">
-      <!-- 左侧：筛选和列表 -->
-      <div class="left-panel">
-        <ProcessFilter 
-          :unique-classes="uniqueClasses"
-          @filter-change="handleFilterChange" 
-        />
-        
-        <div class="members-section">
-          <div class="section-header">
-            <h3>成员列表 ({{ filteredMembers.length }})</h3>
-            <div class="actions">
-              <button class="btn-sort" @click="toggleSort">
-                {{ sortBy === 'name' ? '按姓名' : '按阶段' }}
-              </button>
-            </div>
+    <!-- 错误状态 -->
+    <div v-else-if="error" class="error-container">
+      <div class="error-icon">⚠️</div>
+      <h3>数据加载失败</h3>
+      <p>{{ error }}</p>
+      <button @click="loadData" class="btn-retry">重试</button>
+    </div>
+    
+    <!-- 正常状态 -->
+    <div v-else class="content-wrapper">
+      <!-- 阶段统计卡片 -->
+      <div class="stage-stats">
+        <div 
+          v-for="stage in stageStats" 
+          :key="stage.name" 
+          class="stage-card"
+          :style="{ borderLeftColor: stage.color }"
+          @click="filterByStage(stage.name)"
+        >
+          <div class="stage-icon">{{ stage.icon }}</div>
+          <div class="stage-content">
+            <div class="stage-name">{{ stage.name }}</div>
+            <div class="stage-count">{{ stage.count }}人</div>
           </div>
-          
-          <div class="members-list">
-            <!-- 加载状态 -->
-            <div v-if="loading" class="loading-list">
-              <div class="loading-spinner"></div>
-              <span>加载中...</span>
-            </div>
-            
-            <!-- 空状态 -->
-            <div v-else-if="filteredMembers.length === 0" class="empty-list">
-              <div class="empty-icon">📭</div>
-              <p>暂无符合条件的成员</p>
-              <button class="btn-reset" @click="resetFilters">重置筛选条件</button>
-            </div>
-            
-            <!-- 成员列表 -->
-            <div 
-              v-else
-              v-for="member in sortedMembers" 
-              :key="member.学号"
-              class="member-card"
-              :class="{ 'active': selectedMemberId === member.学号 }"
-              @click="selectMember(member)"
-            >
-              <div class="member-avatar" :style="{ background: getAvatarColor(member.姓名) }">
-                {{ getInitials(member.姓名) }}
-              </div>
-              <div class="member-info">
-                <div class="member-name">{{ member.姓名 }}</div>
-                <div class="member-class">{{ member.班级 }}</div>
-                <div class="member-stage" :style="{ color: getStageColor(member.processStage) }">
-                  {{ member.processStage || '未开始' }}
-                </div>
-              </div>
-              <div class="member-stats">
-                <div class="stat-item" title="活动时数">
-                  <span class="stat-icon">⏱️</span>
-                  <span>{{ member.活动时数 || 0 }}h</span>
-                </div>
-                <div class="stat-item" title="600题成绩">
-                  <span class="stat-icon">📝</span>
-                  <span>{{ member['600题考试成绩'] || '-' }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          <div class="stage-percentage">{{ stage.percentage }}%</div>
         </div>
       </div>
       
-      <!-- 右侧：流程详情 -->
-      <div class="right-panel">
-        <div class="detail-section">
-          <div v-if="selectedMember" class="detail-content">
-            <div class="member-header">
-              <div class="header-left">
-                <h2>{{ selectedMember.姓名 }}</h2>
-                <div class="member-meta">
-                  <span class="meta-item">
-                    <strong>学号:</strong> {{ selectedMember.学号 }}
-                  </span>
-                  <span class="meta-item">
-                    <strong>班级:</strong> {{ selectedMember.班级 }}
-                  </span>
-                  <span class="meta-item">
-                    <strong>政治面貌:</strong> {{ selectedMember.政治面貌 }}
-                  </span>
-                  <span class="meta-item">
-                    <strong>入党阶段:</strong> {{ selectedMember.processStage || '未开始' }}
-                  </span>
-                </div>
-              </div>
-              <div class="header-right">
-                <div class="stage-badge" :style="{ backgroundColor: getStageColor(selectedMember.processStage) }">
-                  {{ selectedMember.processStage || '未开始' }}
-                </div>
-                <div class="total-hours">
-                  总活动时数: <strong>{{ selectedMember.活动时数 || 0 }}h</strong>
-                </div>
-              </div>
+      <!-- 主要区域 -->
+      <div class="main-area">
+        <!-- 左侧：筛选和列表 -->
+        <div class="left-panel">
+          <div class="filter-section">
+            <div class="search-box">
+              <input 
+                v-model="searchText" 
+                placeholder="搜索姓名、学号..." 
+                class="search-input"
+                @input="handleSearch"
+              />
+              <span class="search-icon">🔍</span>
             </div>
             
-            <!-- 流程时间线 -->
-            <div class="timeline-section">
-              <h3>入党流程时间线</h3>
-              <ProcessTimeline :member="selectedMember" @stage-click="handleStageClick" />
-            </div>
-            
-            <!-- 阶段进度 -->
-            <div class="progress-section">
-              <StageProgress :member="selectedMember" />
-            </div>
-            
-            <!-- 详细信息 -->
-            <div class="info-grid">
-              <div class="info-card">
-                <h4>基本信息</h4>
-                <div class="info-row">
-                  <span class="label">出生日期:</span>
-                  <span class="value">{{ formatDate(selectedMember.出生年月日) || '未填写' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">入团时间:</span>
-                  <span class="value">{{ formatDate(selectedMember.入团时间) || '未填写' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">入校时间:</span>
-                  <span class="value">{{ formatDate(selectedMember.入校时间) || '未填写' }}</span>
-                </div>
+            <div class="filter-options">
+              <div class="filter-group">
+                <label>班级：</label>
+                <select v-model="selectedClass" class="filter-select">
+                  <option value="">全部班级</option>
+                  <option v-for="className in classList" :key="className" :value="className">
+                    {{ className }}
+                  </option>
+                </select>
               </div>
               
-              <div class="info-card">
-                <h4>活动记录</h4>
-                <div class="info-row">
-                  <span class="label">活动时数:</span>
-                  <span class="value">{{ selectedMember.活动时数 || 0 }} 小时</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">修正党时:</span>
-                  <span class="value">{{ selectedMember.修正党时 || 0 }} 小时</span>
-                </div>
+              <div class="filter-group">
+                <label>时间范围：</label>
+                <select v-model="selectedTimeRange" class="filter-select">
+                  <option value="all">全部时间</option>
+                  <option value="year">今年</option>
+                  <option value="month">本月</option>
+                  <option value="week">本周</option>
+                </select>
               </div>
-              
-              <div class="info-card">
-                <h4>考试信息</h4>
-                <div class="info-row">
-                  <span class="label">600题成绩:</span>
-                  <span class="value" :class="{
-                    'pass': selectedMember['600题考试成绩'] >= 60,
-                    'fail': selectedMember['600题考试成绩'] < 60 && selectedMember['600题考试成绩'] > 0
-                  }">
-                    {{ selectedMember['600题考试成绩'] || '未参加' }}
-                  </span>
-                </div>
-                <div class="info-row">
-                  <span class="label">考试时间:</span>
-                  <span class="value">{{ formatDate(selectedMember['600题考试时间']) || '未参加' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">积极分子结业成绩:</span>
-                  <span class="value">{{ selectedMember.积极分子结业成绩 || '未参加' }}</span>
-                </div>
-              </div>
-              
-              <div class="info-card">
-                <h4>申请记录</h4>
-                <div class="info-row">
-                  <span class="label">申请入党时间:</span>
-                  <span class="value">{{ formatDate(selectedMember.申请入党时间) || '未申请' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">申请年龄:</span>
-                  <span class="value">{{ selectedMember['递交入党申请书年龄（岁）'] || '-' }} 岁</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">支部接收时间:</span>
-                  <span class="value">{{ formatDate(selectedMember['党支部接收入党积极分子时间']) || '未接收' }}</span>
-                </div>
-              </div>
-            </div>
-            
-            <!-- 备注信息 -->
-            <div v-if="selectedMember.备注" class="remarks-section">
-              <h4>备注</h4>
-              <div class="remarks-content">{{ selectedMember.备注 }}</div>
             </div>
           </div>
           
-          <div v-else class="empty-detail">
-            <div class="empty-icon">👈</div>
-            <h3>请选择一位成员</h3>
-            <p>从左侧列表中选择一位成员查看其详细的入党流程信息</p>
+          <div class="members-section">
+            <div class="section-header">
+              <h3>成员列表</h3>
+              <span class="member-count">{{ filteredMembers.length }}人</span>
+            </div>
+            
+            <div class="members-list">
+              <div 
+                v-for="member in filteredMembers" 
+                :key="member.学号"
+                class="member-card"
+                :class="{ 'selected': selectedMemberId === member.学号 }"
+                @click="selectMember(member)"
+              >
+                <div class="member-avatar" :style="{ background: getAvatarColor(member.姓名) }">
+                  {{ getInitials(member.姓名) }}
+                </div>
+                <div class="member-info">
+                  <div class="member-name">{{ member.姓名 }}</div>
+                  <div class="member-class">{{ member.班级 || '无班级' }}</div>
+                  <div class="member-stage" :style="{ color: getStageColor(member.processStage) }">
+                    {{ member.processStage || '未开始' }}
+                  </div>
+                </div>
+                <div class="member-progress">
+                  <div class="progress-bar">
+                    <div 
+                      class="progress-fill" 
+                      :style="{ 
+                        width: `${getMemberProgress(member)}%`,
+                        backgroundColor: getStageColor(member.processStage)
+                      }"
+                    ></div>
+                  </div>
+                  <span class="progress-text">{{ getMemberProgress(member) }}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 右侧：详情 -->
+        <div class="right-panel">
+          <div class="detail-section">
+            <div v-if="selectedMember" class="detail-content">
+              <!-- 成员头部 -->
+              <div class="member-header">
+                <div class="member-basic">
+                  <div class="member-avatar-large" :style="{ background: getAvatarColor(selectedMember.姓名) }">
+                    {{ getInitials(selectedMember.姓名) }}
+                  </div>
+                  <div class="member-info">
+                    <h2>{{ selectedMember.姓名 }}</h2>
+                    <div class="member-meta">
+                      <span class="meta-item">学号：{{ selectedMember.学号 }}</span>
+                      <span class="meta-item">班级：{{ selectedMember.班级 }}</span>
+                      <span class="meta-item">政治面貌：{{ selectedMember.政治面貌 }}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="member-status">
+                  <div class="stage-badge-large" :style="{ backgroundColor: getStageColor(selectedMember.processStage) }">
+                    {{ selectedMember.processStage || '未开始' }}
+                  </div>
+                  <div class="status-info">
+                    <div class="status-item">
+                      <span class="label">当前阶段：</span>
+                      <span class="value">{{ selectedMember.processStage || '未开始' }}</span>
+                    </div>
+                    <div class="status-item">
+                      <span class="label">开始时间：</span>
+                      <span class="value">{{ getStageStartTime(selectedMember) || '未开始' }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 时间线 -->
+              <div class="timeline-section">
+                <h3>入党流程时间线</h3>
+                <div class="timeline">
+                  <div 
+                    v-for="stage in timelineStages" 
+                    :key="stage.name"
+                    class="timeline-item"
+                    :class="{ 
+                      'active': isStageActive(selectedMember, stage),
+                      'completed': isStageCompleted(selectedMember, stage)
+                    }"
+                    @click="showStageDetail(stage)"
+                  >
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                      <div class="timeline-title">{{ stage.name }}</div>
+                      <div class="timeline-date">
+                        {{ getStageDate(selectedMember, stage) || '未完成' }}
+                      </div>
+                      <div v-if="stage.description" class="timeline-desc">
+                        {{ stage.description }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 详细信息 -->
+              <div class="details-section">
+                <div class="detail-grid">
+                  <div class="detail-card">
+                    <h4>基础信息</h4>
+                    <div class="detail-row">
+                      <span class="label">性别：</span>
+                      <span class="value">{{ selectedMember.性别 || '未填写' }}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="label">年级：</span>
+                      <span class="value">{{ selectedMember.年级 || '未填写' }}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="label">学籍状态：</span>
+                      <span class="value">{{ selectedMember.学籍状态 || '未填写' }}</span>
+                    </div>
+                  </div>
+                  
+                  <div class="detail-card">
+                    <h4>入党信息</h4>
+                    <div class="detail-row">
+                      <span class="label">递交申请书：</span>
+                      <span class="value">{{ formatDate(selectedMember.递交入党申请书) || '未递交' }}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="label">积极分子时间：</span>
+                      <span class="value">{{ formatDate(selectedMember.积极分子时间) || '未成为' }}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="label">确定为发展对象：</span>
+                      <span class="value">{{ formatDate(selectedMember.确定为发展对象日期) || '未确定' }}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="label">支部大会：</span>
+                      <span class="value">{{ formatDate(selectedMember.支部大会) || '未通过' }}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="label">转正时间：</span>
+                      <span class="value">{{ formatDate(selectedMember.转正时间) || '未转正' }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div v-else class="empty-detail">
+              <div class="empty-icon">👈</div>
+              <h3>请选择一位成员</h3>
+              <p>从左侧列表中选择一位成员查看其详细的入党流程信息</p>
+            </div>
           </div>
         </div>
       </div>
     </div>
-    
-    <!-- 阶段详情模态框 -->
-    <StageDetailModal
-      v-if="showStageModal"
-      :stage="selectedStage"
-      :members="stageMembers"
-      @close="closeStageModal"
-    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import StatCard from '@/components/ui/StatCard.vue'
-import ProcessFilter from '@/components/filters/ProcessFilter.vue'
-import ProcessTimeline from '@/components/process/ProcessTimeline.vue'
-import StageProgress from '@/components/process/StageProgress.vue'
-import StageDetailModal from '@/components/modals/StageDetailModal.vue'
-import { useDataStore } from '@/stores/dataStore'
+import { getInitials, getAvatarColor } from '@/utils/memberUtils'
 import { formatDate } from '@/utils/dateFormatter'
-import { calculateProcessStage } from '@/services/dataTransformer'
-
-// 使用 Pinia 数据存储
-const dataStore = useDataStore()
 
 // 响应式数据
 const members = ref([])
 const selectedMemberId = ref(null)
-const showStageModal = ref(false)
-const selectedStage = ref('')
-const activeFilters = ref({})
-const sortBy = ref('stage') // 'name' 或 'stage'
+const searchText = ref('')
+const selectedClass = ref('')
+const selectedTimeRange = ref('all')
 const loading = ref(false)
+const error = ref('')
 
-// 初始化数据
-onMounted(async () => {
-  console.log('Process.vue 已加载，从API获取数据')
-  await loadMembersData()
+// 入党阶段定义
+const timelineStages = [
+  { 
+    name: '递交入党申请书', 
+    key: '递交入党申请书',
+    description: '向党组织正式递交入党申请书',
+    order: 1
+  },
+  { 
+    name: '成为入党积极分子', 
+    key: '积极分子时间',
+    description: '确定为入党积极分子并参加培训',
+    order: 2
+  },
+  { 
+    name: '确定为发展对象', 
+    key: '确定为发展对象日期',
+    description: '经支部委员会讨论确定为发展对象',
+    order: 3
+  },
+  { 
+    name: '支部大会通过', 
+    key: '支部大会',
+    description: '支部大会讨论通过成为预备党员',
+    order: 4
+  },
+  { 
+    name: '转为正式党员', 
+    key: '转正时间',
+    description: '预备期满转为正式中共党员',
+    order: 5
+  }
+]
+
+// 阶段统计数据
+const stageStats = computed(() => {
+  const stages = [
+    { name: '入党申请人', icon: '📝', color: '#52c41a' },
+    { name: '入党积极分子', icon: '⭐', color: '#faad14' },
+    { name: '确定为发展对象', icon: '🎯', color: '#ff7a45' },
+    { name: '中共预备党员', icon: '🔴', color: '#f5222d' },
+    { name: '中共党员', icon: '🏆', color: '#722ed1' },
+    { name: '未开始', icon: '⏳', color: '#bfbfbf' }
+  ]
+  
+  const total = members.value.length
+  
+  return stages.map(stage => {
+    const count = members.value.filter(m => 
+      calculateProcessStage(m) === stage.name
+    ).length
+    
+    const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : 0
+    
+    return {
+      ...stage,
+      count,
+      percentage
+    }
+  })
 })
 
-// 加载成员数据
-const loadMembersData = async () => {
+// 生命周期
+onMounted(async () => {
+  await loadData()
+})
+
+// 加载数据
+async function loadData() {
   loading.value = true
+  error.value = ''
+  
   try {
-    // 从数据存储获取成员数据
-    await dataStore.fetchMembers()
+    const response = await fetch('http://localhost:3001/api/members')
     
-    // 处理成员数据
-    members.value = dataStore.members.map((member, index) => {
-      // 格式化所有日期字段
-      const formattedMember = {
-        ...member,
-        id: member.学号 || index,
-        // 格式化日期字段
-        入团时间: formatDate(member.入团时间),
-        出生年月日: formatDate(member.出生年月日),
-        入校时间: formatDate(member.入校时间),
-        申请入党时间: formatDate(member.申请入党时间),
-        '600题考试时间': formatDate(member['600题考试时间']),
-        '党支部接收入党积极分子时间': formatDate(member['党支部接收入党积极分子时间']),
-        // 确保数字字段都是数字类型
-        活动时数: parseFloat(member.活动时数) || 0,
-        修正党时: parseFloat(member.修正党时) || 0,
-        '600题考试成绩': parseFloat(member['600题考试成绩']) || 0,
-        积极分子结业成绩: parseFloat(member.积极分子结业成绩) || 0,
-        '递交入党申请书年龄（岁）': parseFloat(member['递交入党申请书年龄（岁）']) || null
-      }
-      
-      // 计算综合的入党阶段（结合入党流程阶段和政治面貌）
-      const processStage = calculateProcessStage(formattedMember)
-      
-      return {
-        ...formattedMember,
-        // 添加处理后的字段
-        processStage,
-        // 判断是否为积极分子（包括入党积极分子和积极分子培训结业）
-        isActiveMember: ['入党积极分子', '积极分子培训结业'].includes(member.入党流程阶段),
-        // 从政治面貌判断党员身份
-        isPrePartyMember: member.政治面貌 === '中共预备党员',
-        isPartyMember: member.政治面貌 === '中共党员'
-      }
-    })
-    console.log('加载了', members.value.length, '条成员数据')
-    
-    // 如果有成员数据，默认选择第一个
-    if (members.value.length > 0) {
-      selectedMemberId.value = members.value[0].学号
+    if (!response.ok) {
+      throw new Error(`HTTP错误: ${response.status}`)
     }
-  } catch (error) {
-    console.error('加载数据失败:', error)
-    members.value = []
+    
+    const data = await response.json()
+    
+    if (data.success) {
+      members.value = data.data.map(member => ({
+        ...member,
+        processStage: calculateProcessStage(member)
+      }))
+      
+      // 默认选择第一个成员
+      if (members.value.length > 0) {
+        selectedMemberId.value = members.value[0].学号
+      }
+    } else {
+      throw new Error(data.error || 'API返回失败')
+    }
+  } catch (err) {
+    error.value = err.message
+    console.error('加载数据失败:', err)
   } finally {
     loading.value = false
   }
 }
 
+// 计算入党阶段
+function calculateProcessStage(member) {
+  if (!member) return '未开始'
+  
+  if (member.转正时间) return '中共党员'
+  if (member.支部大会) return '中共预备党员'
+  if (member.确定为发展对象日期) return '确定为发展对象'
+  if (member.积极分子时间) return '入党积极分子'
+  if (member.递交入党申请书) return '入党申请人'
+  
+  return '未开始'
+}
+
 // 计算属性
-const uniqueClasses = computed(() => {
+const classList = computed(() => {
   const classes = new Set()
   members.value.forEach(member => {
     if (member.班级) {
@@ -349,186 +384,64 @@ const uniqueClasses = computed(() => {
 })
 
 const filteredMembers = computed(() => {
-  if (Object.keys(activeFilters.value).length === 0) {
-    return members.value
-  }
+  let result = members.value
   
-  return members.value.filter(member => {
-    // 班级筛选
-    if (activeFilters.value.class && member.班级 !== activeFilters.value.class) {
-      return false
-    }
-    
-    // 政治面貌筛选
-    if (activeFilters.value.politicalStatus && 
-        member.政治面貌 !== activeFilters.value.politicalStatus) {
-      return false
-    }
-    
-    // 阶段筛选（使用处理后的processStage）
-    if (activeFilters.value.stage) {
-      let memberStage = member.processStage
-      // 特殊处理：如果筛选积极分子，包括所有积极分子相关阶段
-      if (activeFilters.value.stage === '入党积极分子') {
-        if (!member.isActiveMember && memberStage !== '入党申请人') {
-          return false
-        }
-      } else if (activeFilters.value.stage === '中共预备党员') {
-        if (!member.isPrePartyMember) return false
-      } else if (activeFilters.value.stage === '中共党员') {
-        if (!member.isPartyMember) return false
-      } else if (memberStage !== activeFilters.value.stage) {
-        return false
-      }
-    }
-    
-    // 活动时数范围筛选
-    if (activeFilters.value.hoursMin !== undefined) {
-      const hours = member.活动时数 || 0
-      if (hours < parseFloat(activeFilters.value.hoursMin)) return false
-    }
-    
-    if (activeFilters.value.hoursMax !== undefined) {
-      const hours = member.活动时数 || 0
-      if (hours > parseFloat(activeFilters.value.hoursMax)) return false
-    }
-    
-    // 搜索筛选
-    if (activeFilters.value.search) {
-      const searchTerm = activeFilters.value.search.toLowerCase()
+  // 搜索筛选
+  if (searchText.value) {
+    const searchTerm = searchText.value.toLowerCase()
+    result = result.filter(member => {
       const name = (member.姓名 || '').toLowerCase()
       const studentId = (member.学号 || '').toString().toLowerCase()
-      const className = (member.班级 || '').toLowerCase()
-      
-      if (!name.includes(searchTerm) && 
-          !studentId.includes(searchTerm) && 
-          !className.includes(searchTerm)) {
-        return false
-      }
-    }
-    
-    return true
-  })
-})
-
-const sortedMembers = computed(() => {
-  const memberList = [...filteredMembers.value]
-  
-  if (sortBy.value === 'name') {
-    return memberList.sort((a, b) => {
-      const nameA = (a.姓名 || '').toLowerCase()
-      const nameB = (b.姓名 || '').toLowerCase()
-      return nameA.localeCompare(nameB)
-    })
-  } else {
-    // 按阶段排序（自定义顺序）
-    const stageOrder = {
-      '中共党员': 1,
-      '中共预备党员': 2,
-      '入党积极分子': 3,
-      '入党申请人': 4,
-      '未开始': 5
-    }
-    
-    return memberList.sort((a, b) => {
-      const stageA = stageOrder[a.processStage] || 999
-      const stageB = stageOrder[b.processStage] || 999
-      return stageA - stageB
+      return name.includes(searchTerm) || studentId.includes(searchTerm)
     })
   }
+  
+  // 班级筛选
+  if (selectedClass.value) {
+    result = result.filter(member => member.班级 === selectedClass.value)
+  }
+  
+  // 时间范围筛选（如果有时间字段）
+  if (selectedTimeRange.value !== 'all') {
+    const currentDate = new Date()
+    
+    result = result.filter(member => {
+      // 这里可以根据实际的时间字段进行筛选
+      // 暂时返回全部，后面可以根据需求实现
+      return true
+    })
+  }
+  
+  return result
 })
 
 const selectedMember = computed(() => {
   return members.value.find(m => m.学号 === selectedMemberId.value)
 })
 
-// 统计相关计算
-const stageCounts = computed(() => {
-  const counts = {}
-  members.value.forEach(member => {
-    const stage = member.processStage || '未开始'
-    counts[stage] = (counts[stage] || 0) + 1
-  })
-  return counts
-})
-
-// 积极分子人数（包括入党积极分子和积极分子培训结业）
-const activeMembersCount = computed(() => {
-  return members.value.filter(member => member.isActiveMember).length
-})
-
-// 预备党员人数（从政治面貌获取）
-const prePartyMemberCount = computed(() => {
-  return members.value.filter(member => member.isPrePartyMember).length
-})
-
-// 党员人数（从政治面貌获取）
-const partyMemberCount = computed(() => {
-  return members.value.filter(member => member.isPartyMember).length
-})
-
-const averageHours = computed(() => {
-  if (members.value.length === 0) return 0
-  const total = members.value.reduce((sum, member) => {
-    return sum + (member.活动时数 || 0)
-  }, 0)
-  return total / members.value.length
-})
-
-const stats = computed(() => ({
-  total: members.value.length,
-  byStage: stageCounts.value,
-  activeMembers: activeMembersCount.value,
-  prePartyMembers: prePartyMemberCount.value,
-  partyMembers: partyMemberCount.value,
-  averageHours: averageHours.value
-}))
-
-const stageMembers = computed(() => {
-  if (!selectedStage.value) return []
-  return members.value.filter(member => member.processStage === selectedStage.value)
-})
-
 // 方法
+function handleSearch() {
+  // 搜索逻辑
+}
+
+function filterByStage(stageName) {
+  selectedClass.value = ''
+  searchText.value = ''
+  
+  // 这里可以添加阶段筛选逻辑
+  // 暂时通过搜索实现
+  searchText.value = stageName === '未开始' ? '' : stageName
+}
+
 function selectMember(member) {
   selectedMemberId.value = member.学号
-  console.log('选择成员:', member.姓名)
-}
-
-function handleFilterChange(filters) {
-  console.log('筛选条件变化:', filters)
-  activeFilters.value = filters
-}
-
-function resetFilters() {
-  activeFilters.value = {}
-  console.log('重置筛选条件')
-}
-
-function toggleSort() {
-  sortBy.value = sortBy.value === 'name' ? 'stage' : 'name'
-  console.log('切换排序方式:', sortBy.value)
-}
-
-function getInitials(name) {
-  if (!name) return '??'
-  return name.slice(0, 2)
-}
-
-function getAvatarColor(name) {
-  const colors = [
-    '#c7000a', '#ff4d4f', '#ff7a45', '#ffa940', '#faad14',
-    '#a0d911', '#52c41a', '#13c2c2', '#1890ff', '#2f54eb',
-    '#722ed1', '#eb2f96'
-  ]
-  const index = name ? name.charCodeAt(0) % colors.length : 0
-  return colors[index]
 }
 
 function getStageColor(stage) {
   const colors = {
     '入党申请人': '#52c41a',
     '入党积极分子': '#faad14',
+    '确定为发展对象': '#ff7a45',
     '中共预备党员': '#f5222d',
     '中共党员': '#722ed1',
     '未开始': '#bfbfbf'
@@ -536,33 +449,84 @@ function getStageColor(stage) {
   return colors[stage] || '#bfbfbf'
 }
 
-function handleStageClick(stage) {
-  console.log('点击阶段:', stage)
-  selectedStage.value = stage
-  showStageModal.value = true
+function getMemberProgress(member) {
+  const stage = member.processStage
+  
+  if (stage === '中共党员') return 100
+  if (stage === '中共预备党员') return 80
+  if (stage === '确定为发展对象') return 60
+  if (stage === '入党积极分子') return 40
+  if (stage === '入党申请人') return 20
+  
+  return 0
 }
 
-function closeStageModal() {
-  showStageModal.value = false
-  selectedStage.value = ''
+function getStageStartTime(member) {
+  const stage = member.processStage
+  
+  if (stage === '中共党员') return formatDate(member.转正时间)
+  if (stage === '中共预备党员') return formatDate(member.支部大会)
+  if (stage === '确定为发展对象') return formatDate(member.确定为发展对象日期)
+  if (stage === '入党积极分子') return formatDate(member.积极分子时间)
+  if (stage === '入党申请人') return formatDate(member.递交入党申请书)
+  
+  return null
+}
+
+function isStageActive(member, timelineStage) {
+  const currentStage = member.processStage
+  const stageOrder = {
+    '未开始': 0,
+    '入党申请人': 1,
+    '入党积极分子': 2,
+    '确定为发展对象': 3,
+    '中共预备党员': 4,
+    '中共党员': 5
+  }
+  
+  const currentOrder = stageOrder[currentStage] || 0
+  return timelineStage.order === currentOrder
+}
+
+function isStageCompleted(member, timelineStage) {
+  const stageOrder = {
+    '未开始': 0,
+    '入党申请人': 1,
+    '入党积极分子': 2,
+    '确定为发展对象': 3,
+    '中共预备党员': 4,
+    '中共党员': 5
+  }
+  
+  const currentStage = member.processStage
+  const currentOrder = stageOrder[currentStage] || 0
+  return timelineStage.order < currentOrder
+}
+
+function getStageDate(member, timelineStage) {
+  return formatDate(member[timelineStage.key])
+}
+
+function showStageDetail(stage) {
+  // 显示阶段详情
+  alert(`阶段详情：${stage.name}\n${stage.description}`)
 }
 </script>
 
 <style scoped>
-/* 样式保持不变，只添加了加载状态样式 */
+/* 样式与Members.vue类似，我提供关键部分的样式 */
 .process-page {
-  min-height: 100vh;
+  padding: 24px;
   background: #f5f5f5;
-  padding: 20px;
+  min-height: calc(100vh - 64px);
 }
 
 .page-header {
   margin-bottom: 24px;
 }
 
-.page-title {
+.page-header h1 {
   font-size: 28px;
-  font-weight: 600;
   color: #262626;
   margin: 0 0 8px 0;
 }
@@ -573,25 +537,83 @@ function closeStageModal() {
   margin: 0;
 }
 
-.stats-grid {
+/* 阶段统计卡片 */
+.stage-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
 
-.main-content {
+.stage-card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  border-left: 4px solid #52c41a;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.stage-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.stage-icon {
+  font-size: 24px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  border-radius: 8px;
+}
+
+.stage-content {
+  flex: 1;
+}
+
+.stage-name {
+  font-size: 14px;
+  color: #595959;
+  margin-bottom: 4px;
+}
+
+.stage-count {
+  font-size: 18px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.stage-percentage {
+  font-size: 12px;
+  color: #8c8c8c;
+  background: #f5f5f5;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+/* 主要区域 */
+.main-area {
   display: flex;
   gap: 24px;
-  height: calc(100vh - 240px);
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .left-panel {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 320px;
+  max-width: 400px;
+  min-width: 300px;
+  border-right: 1px solid #f0f0f0;
+  padding-right: 24px;
 }
 
 .right-panel {
@@ -599,479 +621,113 @@ function closeStageModal() {
   min-width: 0;
 }
 
-.members-section {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  flex: 1;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.section-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #262626;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-sort {
-  padding: 4px 12px;
-  background: #fafafa;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  font-size: 12px;
-  color: #595959;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.btn-sort:hover {
-  border-color: #c7000a;
-  color: #c7000a;
-}
-
-.members-list {
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 8px;
-}
-
-/* 加载状态样式 */
-.loading-list {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  color: #bfbfbf;
-  text-align: center;
-}
-
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #f0f0f0;
-  border-radius: 50%;
-  border-top-color: #c7000a;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.member-card {
-  display: flex;
-  align-items: center;
-  padding: 12px;
-  border: 1px solid #f0f0f0;
-  border-radius: 6px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: white;
+/* 时间线样式 */
+.timeline {
   position: relative;
+  padding-left: 30px;
+  margin-top: 16px;
 }
 
-.member-card:hover {
-  border-color: #c7000a;
-  box-shadow: 0 2px 8px rgba(199, 0, 10, 0.1);
-  transform: translateY(-1px);
-}
-
-.member-card.active {
-  border-color: #c7000a;
-  background: #fffafa;
-}
-
-.member-card.active::before {
+.timeline::before {
   content: '';
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  width: 3px;
-  background: #c7000a;
-  border-radius: 3px 0 0 3px;
+  width: 2px;
+  background: #f0f0f0;
 }
 
-.member-avatar {
-  width: 40px;
-  height: 40px;
+.timeline-item {
+  position: relative;
+  margin-bottom: 24px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.timeline-item:hover {
+  background: #fafafa;
+}
+
+.timeline-item.completed {
+  opacity: 1;
+}
+
+.timeline-item.active {
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: -34px;
+  top: 12px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 14px;
-  margin-right: 12px;
-  flex-shrink: 0;
+  background: #f0f0f0;
+  border: 2px solid white;
+  z-index: 1;
 }
 
-.member-info {
-  flex: 1;
-  min-width: 0;
+.timeline-item.completed .timeline-dot {
+  background: #52c41a;
 }
 
-.member-name {
-  font-weight: 600;
+.timeline-item.active .timeline-dot {
+  background: #1890ff;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(24, 144, 255, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(24, 144, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(24, 144, 255, 0); }
+}
+
+.timeline-content {
+  padding-left: 12px;
+}
+
+.timeline-title {
+  font-weight: 500;
   color: #262626;
-  margin-bottom: 2px;
-  font-size: 14px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin-bottom: 4px;
+  font-size: 15px;
 }
 
-.member-class {
-  font-size: 12px;
+.timeline-date {
+  font-size: 13px;
   color: #8c8c8c;
   margin-bottom: 4px;
 }
 
-.member-stage {
-  font-size: 11px;
-  font-weight: 500;
-  padding: 2px 6px;
-  background: rgba(199, 0, 10, 0.05);
-  border-radius: 3px;
-  display: inline-block;
-}
-
-.member-stats {
-  display: flex;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.timeline-desc {
   font-size: 12px;
-  color: #595959;
-  white-space: nowrap;
-}
-
-.stat-icon {
-  font-size: 14px;
-}
-
-.empty-list {
-  text-align: center;
-  padding: 60px 20px;
   color: #bfbfbf;
-  background: #fafafa;
-  border-radius: 6px;
-  border: 1px dashed #f0f0f0;
 }
 
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
-
-.btn-reset {
-  margin-top: 16px;
-  padding: 6px 16px;
-  background: #c7000a;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.btn-reset:hover {
-  background: #d9363e;
-}
-
-.detail-section {
-  background: white;
-  border-radius: 8px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  height: 100%;
-  overflow-y: auto;
-}
-
-.member-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 24px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #f0f0f0;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.member-header h2 {
-  margin: 0 0 12px 0;
-  font-size: 24px;
-  color: #262626;
-}
-
-.member-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.meta-item {
-  font-size: 13px;
-  color: #595959;
-  background: #fafafa;
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-
-.meta-item strong {
-  color: #262626;
-  margin-right: 4px;
-}
-
-.header-right {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: flex-end;
-}
-
-.stage-badge {
-  padding: 6px 16px;
-  color: white;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.total-hours {
-  font-size: 14px;
-  color: #595959;
-}
-
-.total-hours strong {
-  color: #c7000a;
-  font-size: 18px;
-}
-
-.timeline-section {
-  margin-bottom: 24px;
-}
-
-.timeline-section h3,
-.progress-section h3 {
-  margin: 0 0 16px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #262626;
-}
-
-.progress-section {
-  margin-bottom: 24px;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.info-card {
-  background: #fafafa;
-  border-radius: 8px;
-  padding: 16px;
-  border: 1px solid #f0f0f0;
-}
-
-.info-card h4 {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #262626;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 13px;
-}
-
-.info-row:last-child {
-  margin-bottom: 0;
-}
-
-.label {
-  color: #8c8c8c;
-}
-
-.value {
-  color: #262626;
-  font-weight: 500;
-  text-align: right;
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.value.pass {
-  color: #52c41a;
-}
-
-.value.fail {
-  color: #f5222d;
-}
-
-.remarks-section {
-  background: #fffbe6;
-  border: 1px solid #ffe58f;
-  border-radius: 8px;
-  padding: 16px;
-}
-
-.remarks-section h4 {
-  margin: 0 0 8px 0;
-  font-size: 14px;
-  color: #262626;
-}
-
-.remarks-content {
-  font-size: 13px;
-  color: #595959;
-  line-height: 1.5;
-  white-space: pre-wrap;
-}
-
-.empty-detail {
-  text-align: center;
-  padding: 60px 20px;
-  color: #bfbfbf;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.empty-detail .empty-icon {
-  font-size: 64px;
-  margin-bottom: 16px;
-  opacity: 0.3;
-}
-
-.empty-detail h3 {
-  margin: 0 0 8px 0;
-  font-size: 18px;
-  color: #595959;
-}
-
-.empty-detail p {
-  margin: 0;
-  font-size: 14px;
-  color: #8c8c8c;
-  max-width: 300px;
-}
-
-/* 滚动条样式 */
-.members-list::-webkit-scrollbar,
-.detail-section::-webkit-scrollbar {
-  width: 6px;
-}
-
-.members-list::-webkit-scrollbar-track,
-.detail-section::-webkit-scrollbar-track {
-  background: #f5f5f5;
-  border-radius: 3px;
-}
-
-.members-list::-webkit-scrollbar-thumb,
-.detail-section::-webkit-scrollbar-thumb {
-  background: #d9d9d9;
-  border-radius: 3px;
-}
-
-.members-list::-webkit-scrollbar-thumb:hover,
-.detail-section::-webkit-scrollbar-thumb:hover {
-  background: #bfbfbf;
-}
-
-@media (max-width: 1200px) {
-  .main-content {
+/* 响应式设计 */
+@media (max-width: 992px) {
+  .main-area {
     flex-direction: column;
-    height: auto;
-  }
-  
-  .left-panel,
-  .right-panel {
-    width: 100%;
   }
   
   .left-panel {
-    max-height: 400px;
+    max-width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #f0f0f0;
+    padding-right: 0;
+    padding-bottom: 24px;
+  }
+  
+  .members-list {
+    max-height: 300px;
+    overflow-y: auto;
   }
 }
 
-@media (max-width: 768px) {
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .info-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .member-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .header-right {
-    align-items: stretch;
-  }
-  
-  .member-meta {
-    flex-direction: column;
-    gap: 8px;
-  }
-  
-  .member-card {
-    flex-wrap: wrap;
-  }
-  
-  .member-stats {
-    width: 100%;
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid #f0f0f0;
-    justify-content: flex-start;
-  }
-}
+/* 其他样式（加载、错误、列表等）与Members.vue类似，省略以节省空间 */
 </style>

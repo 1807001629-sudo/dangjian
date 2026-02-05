@@ -1,93 +1,55 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import { h, defineAsyncComponent } from 'vue'
+// src/router/index.js - 完整版
+import { createRouter, createWebHashHistory } from 'vue-router'
 
-console.log('🚦 路由配置开始加载...')
+// 异步导入组件
+const Home = () => import('@/views/Home.vue')
+const Members = () => import('@/views/Members.vue')
+const Process = () => import('@/views/Process.vue')
+const Activities = () => import('@/views/Activities.vue')
+const Statistics = () => import('@/views/Statistics.vue')
 
-// 创建一个简单的加载组件
-const LoadingComponent = {
-  render() {
-    return h('div', {
-      style: {
-        padding: '50px',
-        textAlign: 'center',
-        color: '#666'
-      }
-    }, '页面加载中...')
-  }
-}
-
-// 错误组件
-const ErrorComponent = {
-  render() {
-    return h('div', {
-      style: {
-        padding: '30px',
-        background: '#fff2f0',
-        borderRadius: '8px',
-        border: '1px solid #ffccc7'
-      }
-    }, '❌ 页面加载失败，请刷新重试')
-  }
-}
-
-// 定义路由
 const routes = [
   {
     path: '/',
-    redirect: '/members'
+    name: 'home',
+    component: Home,
+    meta: { title: '系统首页' }
   },
   {
     path: '/members',
-    name: 'Members',
-    component: defineAsyncComponent({
-      loader: () => import('../views/Members.vue'),
-      loadingComponent: LoadingComponent,
-      errorComponent: ErrorComponent,
-      delay: 200,
-      timeout: 3000
-    }),
-    meta: { title: '人员管理' }
-  },
-  {
-    path: '/activities',
-    name: 'Activities',
-    component: defineAsyncComponent({
-      loader: () => import('../views/Activities.vue'),
-      loadingComponent: LoadingComponent,
-      errorComponent: ErrorComponent
-    }),
-    meta: { title: '活动管理' }
+    name: 'members',
+    component: Members,
+    meta: { title: '成员管理' }
   },
   {
     path: '/process',
-    name: 'Process',
-    component: defineAsyncComponent({
-      loader: () => import('../views/Process.vue'),
-      loadingComponent: LoadingComponent,
-      errorComponent: ErrorComponent
-    }),
-    meta: { title: '流程跟踪' }
+    name: 'process',
+    component: Process,
+    meta: { title: '入党流程' }
+  },
+  {
+    path: '/activities',
+    name: 'activities',
+    component: Activities,
+    meta: { title: '活动管理' }
+  },
+  {
+    path: '/statistics',
+    name: 'statistics',
+    component: Statistics,
+    meta: { title: '统计分析' }
   }
 ]
 
-console.log('✅ 路由配置完成，共', routes.length, '个路由')
-
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes
 })
 
-// 导航守卫
+// 路由守卫：设置页面标题
 router.beforeEach((to, from, next) => {
-  console.log(`📍 路由跳转: ${from.path || '/'} → ${to.path}`)
-  if (to.meta.title) {
-    document.title = `${to.meta.title} - 党建管理系统`
-  }
+  document.title = to.meta.title ? `${to.meta.title} - 党建管理系统` : '党建管理系统'
   next()
-})
-
-router.afterEach((to) => {
-  console.log(`✅ 路由跳转完成: ${to.path}`)
 })
 
 export default router

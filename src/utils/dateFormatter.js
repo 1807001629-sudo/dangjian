@@ -1,148 +1,181 @@
-// src/utils/dateFormatter.js
+// src/services/dataTransformer.js - 修正版
+import { formatDate } from '@/utils/dateFormatter';
+
 /**
- * 日期格式化工具函数
+ * 根据成员数据计算入党阶段
+ * @param {Object} member - 成员对象
+ * @returns {string} 入党阶段
  */
-
-// 格式化日期为 YYYY/MM/DD 格式
-export function formatDate(dateStr) {
-  if (!dateStr || dateStr === 'nan' || dateStr === 'null' || dateStr === 'NaN') {
-    return '';
+export function calculateProcessStage(member) {
+  if (!member) return '未开始';
+  
+  // 如果有明确的入党阶段字段，直接使用
+  if (member.入党流程阶段) {
+    return member.入党流程阶段;
   }
   
-  // 如果是数字类型如 20251218.0
-  if (typeof dateStr === 'number' && !isNaN(dateStr)) {
-    const dateNum = Math.floor(dateStr);
-    const dateStrClean = dateNum.toString();
-    
-    if (dateStrClean.length === 8) {
-      const year = dateStrClean.substring(0, 4);
-      const month = dateStrClean.substring(4, 6);
-      const day = dateStrClean.substring(6, 8);
-      return `${year}/${month}/${day}`;
-    }
+  if (member.processStage) {
+    return member.processStage;
   }
   
-  // 如果是字符串类型
-  if (typeof dateStr === 'string') {
-    // 移除 .0 后缀
-    const cleanStr = dateStr.replace(/\.0$/, '');
-    
-    // 检查是否是纯数字格式 YYYYMMDD
-    if (/^\d{8}$/.test(cleanStr)) {
-      const year = cleanStr.substring(0, 4);
-      const month = cleanStr.substring(4, 6);
-      const day = cleanStr.substring(6, 8);
-      return `${year}/${month}/${day}`;
-    }
-    
-    // 检查是否是 YYYY-MM-DD 格式
-    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
-      return cleanStr;
-    }
-    
-    // 其他格式直接返回
-    return cleanStr;
+  // 根据入党时间字段判断
+  if (member.转正时间) {
+    return '中共党员';
+  } else if (member.支部大会) {
+    return '中共预备党员';
+  } else if (member.确定为发展对象日期) {
+    return '确定为发展对象';
+  } else if (member.积极分子时间) {
+    return '入党积极分子';
+  } else if (member.递交入党申请书) {
+    return '入党申请人';
   }
   
-  return dateStr;
+  // 检查是否有积极分子相关信息
+  if (member.积极分子所在支部 || member.积极分子批次) {
+    return '入党积极分子';
+  }
+  
+  // 检查是否有申请记录
+  if (member.递交入党申请书) {
+    return '入党申请人';
+  }
+  
+  return '未开始';
 }
 
-// 别名，兼容旧代码
-export const formatTime = formatDate;
-export const formatDateStr = formatDate;
-
-// 格式化相对时间（如：3天前）
-export function formatRelativeTime(dateStr) {
-  if (!dateStr) return '未知时间';
+/**
+ * 格式化成员数据以供前端使用
+ * @param {Array} members - 原始成员数据
+ * @returns {Array} 格式化后的成员数据
+ */
+export function formatMembersData(members) {
+  if (!Array.isArray(members)) return [];
   
-  const date = parseDate(dateStr);
-  if (!date) return dateStr;
-  
-  const now = new Date();
-  const diffMs = now - date;
-  const diffSec = Math.floor(diffMs / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHour = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHour / 24);
-  const diffMonth = Math.floor(diffDay / 30);
-  const diffYear = Math.floor(diffMonth / 12);
-  
-  if (diffYear > 0) return `${diffYear}年前`;
-  if (diffMonth > 0) return `${diffMonth}个月前`;
-  if (diffDay > 0) return `${diffDay}天前`;
-  if (diffHour > 0) return `${diffHour}小时前`;
-  if (diffMin > 0) return `${diffMin}分钟前`;
-  return '刚刚';
+  return members.map((member, index) => {
+    // 计算入党阶段
+    const processStage = calculateProcessStage(member);
+    
+    // 格式化日期字段
+    const 入党申请书日期 = formatDate(member.递交入党申请书);
+    const 积极分子时间 = formatDate(member.积极分子时间);
+    const 确定为发展对象日期 = formatDate(member.确定为发展对象日期);
+    const 支部大会时间 = formatDate(member.支部大会);
+    const 转正时间 = formatDate(member.转正时间);
+    const 入团时间 = formatDate(member.入团时间);
+    
+    return {
+      // 基础信息
+      id: member.id || member.学号 || index,
+      姓名: member.姓名 || '未命名',
+      学号: member.学号 || '',
+      班级: member.班级 || '',
+      年级: member.年级 || '',
+      性别: member.性别 || '',
+      学籍状态: member.学籍状态 || '未知',
+      更新时间: member.更新时间,
+      
+      // 政治面貌和阶段
+      政治面貌: member.政治面貌 || '未填写',
+      入党流程阶段: processStage,
+      
+      // 入党相关信息（格式化日期）
+      递交入党申请书: 入党申请书日期,
+      积极分子时间: 积极分子时间,
+      确定为发展对象日期: 确定为发展对象日期,
+      支部大会: 支部大会时间,
+      转正时间: 转正时间,
+      
+      // 积极分子信息
+      积极分子所在支部: member.积极分子所在支部,
+      积极分子批次: member.积极分子批次,
+      
+      // 团员信息
+      入团时间: 入团时间,
+      
+      // 成绩信息
+      结业成绩: member.结业成绩,
+      '600题考试成绩': member['600题成绩'] || member['600题考试成绩'] || null,
+      综测排名: member.综测排名,
+      绩点: member.绩点,
+      
+      // 证书信息
+      英语四级成绩: member.英语四级成绩,
+      四级考试时间: formatDate(member.四级考试时间),
+      计算机二级成绩: member.计算机二级成绩,
+      二级考试时间: formatDate(member.二级考试时间),
+      
+      // 计算字段
+      processStage: processStage,
+      isActiveMember: member.isActiveMember || false,
+      isPrePartyMember: member.isPrePartyMember || false,
+      isPartyMember: member.isPartyMember || false,
+      
+      // 活动时数
+      活动时数: member.活动时数 || 0,
+      修正党时: member.修正党时 || 0,
+      备注: member.备注 || ''
+    };
+  });
 }
 
-// 解析日期字符串
-function parseDate(dateStr) {
-  if (!dateStr) return null;
+/**
+ * 统计各阶段人数
+ * @param {Array} members - 成员列表
+ * @returns {Object} 各阶段人数统计
+ */
+export function countByStage(members) {
+  const counts = {
+    '入党申请人': 0,
+    '入党积极分子': 0,
+    '确定为发展对象': 0,
+    '中共预备党员': 0,
+    '中共党员': 0,
+    '未开始': 0
+  };
   
-  try {
-    // 尝试解析 YYYYMMDD 格式
-    if (/^\d{8}$/.test(dateStr)) {
-      const year = parseInt(dateStr.substring(0, 4));
-      const month = parseInt(dateStr.substring(4, 6)) - 1;
-      const day = parseInt(dateStr.substring(6, 8));
-      return new Date(year, month, day);
-    }
-    
-    // 尝试解析 YYYY/MM/DD 格式
-    if (/^\d{4}\/\d{2}\/\d{2}$/.test(dateStr)) {
-      const [year, month, day] = dateStr.split('/').map(Number);
-      return new Date(year, month - 1, day);
-    }
-    
-    // 尝试解析 YYYY-MM-DD 格式
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      return new Date(dateStr);
-    }
-    
-    // 尝试通用日期解析
-    return new Date(dateStr);
-  } catch (e) {
-    console.error('解析日期失败:', dateStr, e);
-    return null;
-  }
+  members.forEach(member => {
+    const stage = calculateProcessStage(member);
+    counts[stage] = (counts[stage] || 0) + 1;
+  });
+  
+  return counts;
 }
 
-// 格式化时间范围
-export function formatTimeRange(startStr, endStr) {
-  const start = formatDate(startStr);
-  const end = formatDate(endStr);
-  
-  if (!start && !end) return '';
-  if (start && !end) return `${start} 至今`;
-  if (!start && end) return `至 ${end}`;
-  if (start === end) return start;
-  
-  return `${start} - ${end}`;
+/**
+ * 获取班级列表
+ * @param {Array} members - 成员列表
+ * @returns {Array} 班级列表
+ */
+export function getClassList(members) {
+  const classes = new Set();
+  members.forEach(member => {
+    if (member.班级) {
+      classes.add(member.班级);
+    }
+  });
+  return Array.from(classes).sort();
 }
 
-// 计算年龄
-export function calculateAge(birthDateStr) {
-  if (!birthDateStr) return '';
-  
-  const birthDate = parseDate(birthDateStr);
-  if (!birthDate) return '';
-  
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-  
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  
-  return age;
+/**
+ * 获取政治面貌列表
+ * @param {Array} members - 成员列表
+ * @returns {Array} 政治面貌列表
+ */
+export function getPoliticalStatusList(members) {
+  const statuses = new Set();
+  members.forEach(member => {
+    if (member.政治面貌 && member.政治面貌 !== '未填写') {
+      statuses.add(member.政治面貌);
+    }
+  });
+  return Array.from(statuses).sort();
 }
 
 export default {
-  formatDate,
-  formatTime,
-  formatDateStr,
-  formatRelativeTime,
-  formatTimeRange,
-  calculateAge
+  calculateProcessStage,
+  formatMembersData,
+  countByStage,
+  getClassList,
+  getPoliticalStatusList
 };
