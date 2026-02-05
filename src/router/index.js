@@ -1,4 +1,4 @@
-// src/router/index.js - 完整版
+// src/router/index.js - 修正版
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 // 异步导入组件
